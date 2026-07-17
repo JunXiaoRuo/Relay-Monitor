@@ -2,6 +2,8 @@
 
 此目录是完整的便携发行包，不是单文件程序。原生启动器、Node.js 22 运行时、平台原生依赖、服务端和 Web 静态文件必须保留在同一目录中；不要只复制 `RelayMonitor.exe` 或 `relay-monitor`。
 
+Relay Monitor 采用 GNU General Public License v3.0（`GPL-3.0-only`）发布，完整条款见包内 `LICENSE`。保留或再分发本发行包时，不要删除许可证文件。
+
 发行包不包含 `.env`、数据库、主密钥或任何现有凭据。首次运行：
 
 - Windows：`powershell -ExecutionPolicy Bypass -File .\setup.ps1`

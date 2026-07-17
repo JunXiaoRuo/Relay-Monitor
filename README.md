@@ -4,7 +4,7 @@ Relay Monitor 是面向单管理员或小团队的中转站监控与告警平台
 
 项目支持 Windows 开发与部署，也支持 Linux。生产构建由一个 Node.js 进程同时提供 API、调度器、通知 Worker 和 Web 管理台，不需要再启动第二个 `server` 项目、独立 SQLite 服务、MySQL 或 Docker。
 
-> 当前版本为 `1.0.0`。公网部署前必须配置 HTTPS、可靠备份和严格文件权限。
+> 当前版本为 `1.0.1`。公网部署前必须配置 HTTPS、可靠备份和严格文件权限。
 
 ## 功能
 
@@ -108,8 +108,8 @@ GitHub Actions 会在固定的 Windows 2022 和 Ubuntu 22.04 环境分别安装�
 ```powershell
 # Windows
 $InstallRoot = Join-Path $env:USERPROFILE 'RelayMonitor'
-Expand-Archive .\relay-monitor-1.0.0-windows-x64.zip -DestinationPath $InstallRoot
-Set-Location (Join-Path $InstallRoot 'relay-monitor-1.0.0-windows-x64')
+Expand-Archive .\relay-monitor-1.0.1-windows-x64.zip -DestinationPath $InstallRoot
+Set-Location (Join-Path $InstallRoot 'relay-monitor-1.0.1-windows-x64')
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 .\RelayMonitor.exe admin create --username admin --display-name "管理员"
 .\RelayMonitor.exe start
@@ -118,8 +118,8 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```bash
 # Linux x64
 mkdir -p "$HOME/relay-monitor"
-tar -xzf relay-monitor-1.0.0-linux-x64.tar.gz -C "$HOME/relay-monitor"
-cd "$HOME/relay-monitor/relay-monitor-1.0.0-linux-x64"
+tar -xzf relay-monitor-1.0.1-linux-x64.tar.gz -C "$HOME/relay-monitor"
+cd "$HOME/relay-monitor/relay-monitor-1.0.1-linux-x64"
 ./setup.sh
 ./relay-monitor admin create --username admin --display-name 管理员
 ./relay-monitor start
@@ -155,11 +155,11 @@ bash scripts/release/smoke-linux.sh --archive "artifacts/relay-monitor-$VERSION-
 
 ### GitHub Actions 发布
 
-每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会执行双平台检查并生成保留 14 天的 Actions artifact。将 `package.json` 版本设为 `1.0.0` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
+每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会执行双平台检查并生成保留 14 天的 Actions artifact。将 `package.json` 版本设为 `1.0.1` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 标签必须与 `package.json` 完全一致；工作流会创建 GitHub Release，并附带两个发行包和 `SHA256SUMS.txt`。未签名的 Windows 可执行文件可能触发 SmartScreen“未知发布者”提示，先核对 Release 校验值；代码签名证书不能放入仓库或 Actions 普通变量。
@@ -412,6 +412,10 @@ corepack pnpm build
 - **移除事件要迁移**：不能只在前端隐藏；需处理已有规则修订、历史兼容和数据库迁移。
 - **凭据永不回显**：前端仅收到存在状态、掩码和非敏感元数据。
 - **保持单项目部署**：生产 Web 与 API 使用同一构建和进程。
+
+## 开源许可证
+
+Relay Monitor 采用 [GNU General Public License v3.0](LICENSE)（`GPL-3.0-only`）开源。你可以使用、研究、修改和再分发本项目；发布修改版或衍生版本时，需要继续采用 GPL v3 并提供对应源代码和许可证文本。本项目按现状提供，不附带任何明示或默示担保。
 
 ## FAQ
 

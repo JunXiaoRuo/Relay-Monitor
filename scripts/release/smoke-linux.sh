@@ -76,6 +76,7 @@ for required in \
   "$launcher" \
   "$node" \
   "$root/runtime/LICENSE.node.txt" \
+  "$root/LICENSE" \
   "$root/dist/web/index.html" \
   "$root/dist/server/backend/server.js" \
   "$root/dist/server/backend/db/migrations/meta/_journal.json" \

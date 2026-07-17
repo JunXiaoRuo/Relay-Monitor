@@ -56,6 +56,7 @@ try {
     Require-File $Launcher
     Require-File $Node
     Require-File (Join-Path $Root 'runtime\LICENSE.node.txt')
+    Require-File (Join-Path $Root 'LICENSE')
     Require-File (Join-Path $Root 'dist\web\index.html')
     Require-File (Join-Path $Root 'dist\server\backend\server.js')
     Require-File (Join-Path $Root 'dist\server\backend\db\migrations\meta\_journal.json')
