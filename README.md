@@ -71,7 +71,8 @@ data/           本地数据和依赖缓存（不提交）
 ## Windows 开发
 
 ~~~powershell
-Set-Location E:\github\Relay-Monitor
+# 先进入克隆后的 Relay-Monitor 项目根目录
+Set-Location .\Relay-Monitor
 Copy-Item .env.example .env
 corepack pnpm install --frozen-lockfile --store-dir .\data\pnpm-store
 corepack pnpm db:migrate
@@ -179,8 +180,8 @@ node --env-file=.env dist/server/backend/server.js
 
 HTTP 下管理员密码、会话 Cookie 和管理数据均为明文传输，因此只允许在受信 LAN/VPN 使用。公网、访客 Wi-Fi 或其他不受信链路必须切换内置 HTTPS；Caddy/Nginx 仍可作为域名、统一入口或集中证书管理的可选方案。`WEB_ORIGIN` 是兼容旧部署的可选初始地址提示，不参与 CORS、CSRF、Cookie 或 TLS 安全判断，直连部署无需填写。Linux 的迁移、管理员和主密钥 CLI 必须通过 `node --env-file=/etc/relay-monitor/monitor.env dist/...` 显式加载生产配置，不能依赖源码目录中的 `.env`。这项访问方式调整不新增、移除或改变任何通知事件。
 
-- [Windows Server 部署](docs/deployment-windows.md)：继续使用唯一项目目录 `E:\github\Relay-Monitor`；`E:\server` 只放 Node、WinSW 等独立工具，不建立第二套 Relay Monitor。
-- [Linux 直接部署](docs/deployment-linux.md)：systemd、内置 HTTP/HTTPS、可选 Caddy/Nginx、权限、备份和密钥轮换。`/root/RelayMonitor` 可作为源码/构建工作区，运行版本安装到 `/opt/relay-monitor/releases` 并由非 root 用户托管。
+- [Windows Server 部署](docs/deployment-windows.md)：在克隆得到的唯一 Relay Monitor 项目目录内开发和运行；Node、WinSW 等独立工具可安装到管理员自行选择的受控工具目录，不要在工具目录建立第二套 Relay Monitor。
+- [Linux 直接部署](docs/deployment-linux.md)：systemd、内置 HTTP/HTTPS、可选 Caddy/Nginx、权限、备份和密钥轮换。源码工作区只用于构建，运行版本安装到 `/opt/relay-monitor/releases` 并由非 root 用户托管。
 
 ## 配置
 
