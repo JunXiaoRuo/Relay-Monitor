@@ -79,7 +79,16 @@ if [ -e "$key_path" ] && [ ! -f "$key_path" ]; then
   exit 1
 fi
 if [ ! -e "$key_path" ]; then
-  dd if=/dev/urandom of="$key_path" bs=32 count=1 status=none oflag=excl
+  "$root/runtime/bin/node" -e '
+    const fs = require("node:fs");
+    const { randomBytes } = require("node:crypto");
+    const key = randomBytes(32);
+    try {
+      fs.writeFileSync(process.argv[1], key, { flag: "wx", mode: 0o600 });
+    } finally {
+      key.fill(0);
+    }
+  ' "$key_path"
   created_key=1
 fi
 chmod 600 "$key_path"
