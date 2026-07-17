@@ -1,0 +1,27 @@
+<service>
+  <id>RelayMonitor</id>
+  <name>Relay Monitor</name>
+  <description>Relay Monitor relay monitoring and notification service</description>
+
+  <!-- Rename WinSW to RelayMonitorService.exe and this file to RelayMonitorService.xml. -->
+  <executable>%BASE%\RelayMonitor.exe</executable>
+  <arguments>start</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <serviceaccount>
+    <username>NT AUTHORITY\NetworkService</username>
+  </serviceaccount>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="15 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <stoptimeout>30 sec</stoptimeout>
+  <logpath>%BASE%\data\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

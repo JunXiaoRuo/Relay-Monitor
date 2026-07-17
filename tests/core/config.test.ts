@@ -20,6 +20,15 @@ describe('runtime configuration', () => {
     expect(() => assertSupportedNodeVersion('23.0.0')).toThrow(/22\.x/i);
   });
 
+  it('treats WEB_ORIGIN as an optional legacy address hint', () => {
+    expect(loadConfig({ NODE_ENV: 'test' }).webOrigin).toBeUndefined();
+    expect(loadConfig({ NODE_ENV: 'test', WEB_ORIGIN: '   ' }).webOrigin).toBeUndefined();
+    expect(loadConfig({
+      NODE_ENV: 'test',
+      WEB_ORIGIN: '  https://monitor.example.com:8443  ',
+    }).webOrigin).toBe('https://monitor.example.com:8443');
+  });
+
   it('requires a pre-provisioned production key and parses allowed CIDRs', () => {
     const directory = join(tmpdir(), `relay-monitor-config-${process.pid}-${Date.now()}`);
     temporaryPaths.push(directory);

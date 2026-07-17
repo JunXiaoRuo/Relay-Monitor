@@ -4,6 +4,36 @@ Relay Monitor 生产环境只运行一个 Node.js 进程，由它同时提供 AP
 
 受信局域网可直接访问 `http://<服务器 LAN IPv4>:5173`，再在“系统设置 → 访问方式”切换内置 HTTPS。HTTP 不加密密码、会话和管理数据，只能用于受信 LAN/VPN；公网或不受信网络必须使用 HTTPS。内置 HTTPS 始终使用 `Secure`/`__Host-` Cookie。因为管理台允许切回 HTTP，内置服务不发送持久 HSTS；只有确定入口永久保持 HTTPS 时才由外部反向代理配置 HSTS。
 
+## 选择部署方式
+
+普通 x64/glibc Linux 推荐下载 `relay-monitor-<版本>-linux-x64.tar.gz`。包内已经包含 Node.js 22.23.1、Linux 原生依赖、Web/API 产物和 `relay-monitor` ELF 启动器，不需要在服务器另外安装 Node、pnpm 或 Go。它在 Ubuntu 22.04 构建，不适用于 Alpine/musl、ARM 或 Windows。
+
+快速验证可以解压后直接初始化：
+
+```bash
+sha256sum --check SHA256SUMS.txt
+mkdir -p "$HOME/relay-monitor-demo"
+tar -xzf relay-monitor-0.1.0-linux-x64.tar.gz -C "$HOME/relay-monitor-demo"
+cd "$HOME/relay-monitor-demo/relay-monitor-0.1.0-linux-x64"
+./setup.sh
+./relay-monitor admin create --username admin --display-name 管理员
+./relay-monitor start
+```
+
+`setup.sh` 会创建包内 `.env`、`data/master.key` 和数据库，且不会询问 `WEB_ORIGIN`。这适合首次验证；正式长期服务仍应采用下文的 `relaymon` 非 root 用户、`/etc/relay-monitor` 配置/密钥和 `/var/lib/relay-monitor` 数据布局。使用便携包时，跳过“安装 Node”和“在 Linux 构建版本”，把运行命令替换为：
+
+```bash
+sudo -u relaymon env RELAY_MONITOR_ENV_FILE=/etc/relay-monitor/monitor.env \
+  /opt/relay-monitor/current/relay-monitor migrate
+sudo -u relaymon env RELAY_MONITOR_ENV_FILE=/etc/relay-monitor/monitor.env \
+  /opt/relay-monitor/current/relay-monitor admin create \
+  --username admin --display-name 管理员
+```
+
+发行包内 `service/relay-monitor.service.example` 已调用 bundled launcher；安装到 systemd 前仍需核对路径、账号和 `ReadWritePaths`。整个发行目录必须保留，不能只复制 `relay-monitor`：`runtime`、`node_modules`、`dist/web` 和数据库迁移都是运行时组成部分。
+
+需要修改源码、运行完整测试或为其他 glibc 基线自行构建时，再使用下文源码流程。无论选择哪条路线，SQLite 都只允许一个 Relay Monitor 实例写入。
+
 ## 目录与权限
 
 推荐布局：
@@ -20,7 +50,7 @@ Relay Monitor 生产环境只运行一个 Node.js 进程，由它同时提供 AP
 
 不要让 Web 服务从 `/root` 运行，也不要为了让服务访问 `/root` 而放宽 `ProtectHome` 或让 Node 以 root 身份运行。用户要求把项目放在 `/root/RelayMonitor` 时，该目录只作为源码和构建工作区；systemd 仍从 `/opt/relay-monitor/current` 运行不可变版本。
 
-## 先决条件
+## 先决条件（源码构建）
 
 - Debian 12、Ubuntu 22.04/24.04 或等价的 systemd Linux。
 - Node.js 必须满足 `>=22.19.0 <23`；Node 23/24 会被项目拒绝。
@@ -105,10 +135,9 @@ MASTER_KEY_FILE=/etc/relay-monitor/master.key
 TRUST_PROXY=false
 MANAGED_RESTART=true
 SESSION_COOKIE_SECURE=auto
-WEB_ORIGIN=http://192.168.31.76:5173
 ```
 
-`WEB_ORIGIN` 必须与浏览器首次访问的实际 Origin 完全一致，包括协议和端口。`MANAGED_RESTART=true` 配合样例 systemd 的 `Restart=always`，允许管理台保存访问方式后退出并由 systemd 拉起。直连模式保持 `TRUST_PROXY=false`。若改为可选外部反向代理，再把 `HOST` 改为 `127.0.0.1` 并按下文设置代理相关变量。
+直连部署不需要填写 `WEB_ORIGIN`。它只是兼容旧部署的可选初始提示，不参与 CORS、CSRF、Cookie 或 TLS 判断；浏览器使用服务器实际 IP/域名访问，首次打开“系统设置 → 访问方式”时管理台会用当前浏览器主机提供建议。`MANAGED_RESTART=true` 配合样例 systemd 的 `Restart=always`，允许管理台保存访问方式后退出并由 systemd 拉起。直连模式保持 `TRUST_PROXY=false`。若改为可选外部反向代理，再把 `HOST` 改为 `127.0.0.1` 并按下文设置代理相关变量。
 
 ### 4. 在 Linux 构建版本
 
@@ -227,7 +256,7 @@ ss -ltnp 'sport = :5173'
 sudo journalctl -u relay-monitor -n 100 --no-pager
 ```
 
-浏览器使用服务器实际地址，例如 `http://192.168.31.76:5173`，不要访问 `0.0.0.0`。样例服务使用 `Restart=always`，因此在系统设置保存协议/证书后可以安全退出并由 systemd 自动拉起；如果自行修改服务策略，管理台会只提示“需要重启”，不会假装配置已经生效。
+浏览器使用服务器实际地址，例如 `http://192.168.1.20:5173`，不要访问 `0.0.0.0`。样例服务使用 `Restart=always`，因此在系统设置保存协议/证书后可以安全退出并由 systemd 自动拉起；如果自行修改服务策略，管理台会只提示“需要重启”，不会假装配置已经生效。
 
 本文后续的 `http://127.0.0.1:5173/readyz` 命令用于初始 HTTP 配置。切换内置 HTTPS 后，应改用证书覆盖的实际主机名/IP 和 `https://...:5173/readyz`，并通过 `--cacert` 或系统信任库验证签发 CA。
 
@@ -238,7 +267,7 @@ sudo journalctl -u relay-monitor -n 100 --no-pager
 下面示例为单个 LAN IP 建立私有 CA 和服务端证书；CA 私钥和服务器私钥只能由 root 读取，客户端只分发 `.crt` 公钥证书：
 
 ```bash
-LAN_IP=192.168.31.76
+LAN_IP=192.168.1.20
 sudo install -d -m 0700 -o root -g root /etc/relay-monitor/tls
 sudo openssl genrsa -out /etc/relay-monitor/tls/relay-monitor-ca.key 3072
 sudo openssl req -x509 -new \
@@ -274,17 +303,17 @@ sudo openssl verify \
 
 随后：
 
-1. 从受信 LAN 打开 `http://192.168.31.76:5173` 并登录。
-2. 进入“系统设置 → 访问方式”，选择 HTTPS，访问主机填写 `192.168.31.76`。
+1. 从受信 LAN 打开 `http://192.168.1.20:5173` 并登录。
+2. 进入“系统设置 → 访问方式”，选择 HTTPS，访问主机填写 `192.168.1.20`。
 3. 把 `relay-monitor.crt` 和 `relay-monitor.key` 的完整 PEM 分别粘贴到“服务器证书”和“私钥”。两者必须同时填写；私钥保存后不会回填。
-4. 点击“保存并应用”。样例 systemd 会自动重启服务；稍候从 `https://192.168.31.76:5173` 重新登录。
+4. 点击“保存并应用”。样例 systemd 会自动重启服务；稍候从 `https://192.168.1.20:5173` 重新登录。
 
 应用把生效副本写入 `/var/lib/relay-monitor/tls` 并限制文件权限。不要把服务端私钥复制到 Web 根目录、源码、日志或聊天中。可在服务器验证：
 
 ```bash
 curl --fail \
   --cacert /etc/relay-monitor/tls/relay-monitor-ca.crt \
-  https://192.168.31.76:5173/readyz
+  https://192.168.1.20:5173/readyz
 sudo find /var/lib/relay-monitor/tls -maxdepth 3 -type f \
   -printf '%u %g %m %p\n'
 ```
@@ -293,7 +322,7 @@ Windows 自带的 `curl.exe` 使用 Schannel。私有 CA 没有公网 CRL/OCSP �
 
 ```powershell
 curl.exe --ssl-no-revoke --cacert .\relay-monitor-ca.crt `
-  --fail https://192.168.31.76:5173/readyz
+  --fail https://192.168.1.20:5173/readyz
 ```
 
 `--ssl-no-revoke` 只用于这个命令行验证，不等于跳过证书链校验。浏览器和日常客户端仍应导入 `relay-monitor-ca.crt`，并正常验证证书；不要使用 `-k` 或 `--insecure`。内置 HTTPS 生效后始终启用 `Secure`/`__Host-` Cookie；切回 HTTP 后恢复普通 Cookie。内置服务不发送持久 HSTS，避免浏览器在切回 HTTP 后仍强制升级；HTTP 只能继续在受信 LAN/VPN 使用。
@@ -310,7 +339,6 @@ curl.exe --ssl-no-revoke --cacert .\relay-monitor-ca.crt `
 HOST=127.0.0.1
 PORT=5173
 TRUST_PROXY=127.0.0.1
-WEB_ORIGIN=https://monitor.example.com
 SESSION_COOKIE_SECURE=true
 ```
 
@@ -419,9 +447,9 @@ curl --fail http://127.0.0.1:5173/readyz
 sudo -u relaymon sqlite3 /var/lib/relay-monitor/monitor.db 'PRAGMA quick_check;'
 ```
 
-- `readyz` 正常但浏览器无法登录：检查实际协议、主机、端口是否与当前访问方式及 `WEB_ORIGIN` 一致。切换协议后必须从新地址重新登录。
+- `readyz` 正常但浏览器无法登录：检查实际协议、主机、端口和系统中已保存的访问方式；切换协议后必须从新地址重新登录。`WEB_ORIGIN` 不参与会话校验。
 - 保存 HTTPS 后服务无法启动：检查证书和私钥是否匹配、证书 SAN 是否覆盖访问主机，以及 `/var/lib/relay-monitor/tls` 权限；用 `journalctl` 查看公开错误，不要把私钥粘贴到排障记录。
-- 外部 HTTPS 反代能打开但会话异常：必须显式设 `SESSION_COOKIE_SECURE=true`，同时核对精确 `TRUST_PROXY` 和 `WEB_ORIGIN`；默认 `auto` 只跟随内置 TLS。
+- 外部 HTTPS 反代能打开但会话异常：必须显式设 `SESSION_COOKIE_SECURE=true`，同时核对精确 `TRUST_PROXY`、Host 和转发协议头；默认 `auto` 只跟随内置 TLS。
 - 服务找不到 Node：检查 `command -v node` 与 systemd `ExecStart`。
 - 迁移后看不到原数据：检查 CLI 是否显式加载 `/etc/relay-monitor/monitor.env`，不要继续向错误数据库写入。
 - 凭据无法解密：停止服务，核对数据库和主密钥是否来自同一实例，不要重新生成主密钥覆盖旧文件。

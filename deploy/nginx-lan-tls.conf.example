@@ -1,7 +1,7 @@
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
-    server_name 192.168.31.76;
+    server_name 192.168.1.20;
 
     ssl_certificate /etc/relay-monitor/tls/relay-monitor.crt;
     ssl_certificate_key /etc/relay-monitor/tls/relay-monitor.key;

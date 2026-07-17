@@ -9,6 +9,11 @@ const booleanString = z
   .enum(['true', 'false', '1', '0'])
   .transform((value) => value === 'true' || value === '1');
 
+const optionalUrlString = z.preprocess(
+  (value) => typeof value === 'string' ? value.trim() || undefined : value,
+  z.string().url().optional(),
+);
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().min(1).default('0.0.0.0'),
@@ -22,7 +27,7 @@ const environmentSchema = z.object({
   TRUST_PROXY: z.string().default('false'),
   MANAGED_RESTART: booleanString.default(false),
   SESSION_COOKIE_SECURE: z.enum(['auto', 'true', 'false']).default('auto'),
-  WEB_ORIGIN: z.string().url().default('http://127.0.0.1:5173'),
+  WEB_ORIGIN: optionalUrlString,
   DATABASE_BUSY_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(5_000),
   MAX_CONCURRENT_SITES: z.coerce.number().int().min(1).max(100).default(5),
   OUTBOUND_ALLOWED_CIDRS: z.string().default(''),
@@ -42,7 +47,7 @@ export interface AppConfig {
   trustProxy: boolean | string;
   managedRestart: boolean;
   sessionCookieSecure: 'auto' | 'true' | 'false';
-  webOrigin: string;
+  webOrigin: string | undefined;
   databaseBusyTimeoutMs: number;
   maxConcurrentSites: number;
   outboundAllowedCidrs: string[];

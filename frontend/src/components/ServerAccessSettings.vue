@@ -29,6 +29,11 @@ const message = ref<string | null>(null);
 const copied = ref(false);
 
 const currentBrowserOrigin = window.location.origin;
+const currentBrowserHostname = (() => {
+  const hostname = window.location.hostname.trim();
+  return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+})();
+const loopbackAccessHosts = new Set(['127.0.0.1', '::1', 'localhost']);
 const hasNewCertificate = computed(() => certificatePem.value.trim().length > 0);
 const hasNewPrivateKey = computed(() => privateKeyPem.value.trim().length > 0);
 const certificatePairComplete = computed(() => hasNewCertificate.value === hasNewPrivateKey.value);
@@ -49,7 +54,12 @@ const canSave = computed(() => {
 function applySettings(next: ServerAccessSettings): void {
   settings.value = next;
   protocol.value = next.protocol;
-  accessHost.value = next.access_host;
+  const shouldSuggestBrowserHost = next.updated_at === null
+    && loopbackAccessHosts.has(next.access_host.toLowerCase())
+    && currentBrowserHostname.length > 0;
+  accessHost.value = shouldSuggestBrowserHost
+    ? currentBrowserHostname
+    : next.access_host;
   certificatePem.value = '';
   privateKeyPem.value = '';
 }
@@ -196,7 +206,7 @@ onMounted(load);
 
         <div class="field">
           <label for="server-access-host">访问主机</label>
-          <input id="server-access-host" v-model="accessHost" class="input mono" type="text" maxlength="253" placeholder="192.168.31.76 或 monitor.example.com" autocomplete="off" />
+          <input id="server-access-host" v-model="accessHost" class="input mono" type="text" maxlength="253" placeholder="192.168.1.20 或 monitor.example.com" autocomplete="off" />
           <span class="field-hint">用于生成切换后的地址，并校验证书是否覆盖该 IP 或域名。</span>
         </div>
 

@@ -62,12 +62,21 @@ interface ValidatedTlsMaterial {
 }
 
 function fallbackAccessHost(config: AppConfig): string {
-  try {
-    return normalizeAccessHost(new URL(config.webOrigin).hostname);
-  } catch {
-    if (!['0.0.0.0', '::', '[::]'].includes(config.host)) return normalizeAccessHost(config.host);
-    return '127.0.0.1';
+  if (config.webOrigin) {
+    try {
+      return normalizeAccessHost(new URL(config.webOrigin).hostname);
+    } catch {
+      // AppConfig is normally schema-validated; continue for manually assembled legacy configs.
+    }
   }
+  if (!['0.0.0.0', '::', '[::]'].includes(config.host)) {
+    try {
+      return normalizeAccessHost(config.host);
+    } catch {
+      // Fastify will report an invalid listen host; keep this display fallback usable.
+    }
+  }
+  return '127.0.0.1';
 }
 
 export function normalizeAccessHost(input: string): string {

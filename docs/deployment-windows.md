@@ -1,10 +1,35 @@
 # Windows 部署
 
-Relay Monitor 在这台机器上只保留一个项目目录：`E:\github\Relay-Monitor`。源码、`node_modules`、构建产物、配置和运行数据都从这个项目根目录管理。
+Relay Monitor 支持“GitHub Release 便携包”和“源码构建”两种 Windows 部署方式。两者只能选择一种作为当前运行实例，不能同时启动或混用不同平台的 `node_modules`。
+
+这台开发机器的源码部署示例使用 `E:\github\Relay-Monitor`。便携包可以解压到管理员自行选择的应用目录，且已经包含 Node.js 运行时，不要求系统安装 Node。
 
 `E:\server` 只用于独立运行时和服务工具，例如 Node.js、WinSW 或反向代理。不要把 Relay Monitor 源码、数据库或另一套可运行副本放进 `E:\server`。
 
 生产构建只启动一个 Node.js 进程；Fastify 同时提供 API、调度器、通知 Worker 和构建后的 Vue 管理台。
+
+## 0. 选择部署方式
+
+推荐普通用户从 GitHub Actions artifact 或 GitHub Release 下载 `relay-monitor-<版本>-windows-x64.zip`。先核对 Release 中 `SHA256SUMS.txt`，再解压并初始化：
+
+~~~powershell
+$Archive = '.\relay-monitor-0.1.0-windows-x64.zip'
+$InstallRoot = Join-Path $env:USERPROFILE 'RelayMonitor'
+(Get-FileHash -Algorithm SHA256 $Archive).Hash
+Expand-Archive $Archive -DestinationPath $InstallRoot
+Set-Location (Join-Path $InstallRoot 'relay-monitor-0.1.0-windows-x64')
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+.\RelayMonitor.exe admin create --username admin --display-name "管理员"
+.\RelayMonitor.exe start
+~~~
+
+初始化脚本从 `.env.example` 创建 `.env`、生成 32 字节主密钥并执行数据库迁移；已有文件不会被覆盖。它不会询问 `WEB_ORIGIN`，直连部署也不需要填写该变量。浏览器本机访问 `http://127.0.0.1:5173`，局域网访问服务器真实 IPv4；`0.0.0.0` 只能写入监听配置，不能作为浏览器地址。
+
+便携包中的 `RelayMonitor.exe` 是原生 Windows 启动入口，但整个目录仍是一个完整应用，不能只复制 EXE。包内 `runtime`、`node_modules`、`dist` 和迁移文件必须一起保留。首次启动可能出现 SmartScreen“未知发布者”，应先核对 SHA-256；不要为了消除提示而关闭系统安全功能。
+
+长期运行时可使用包内 `service\relay-monitor-service.xml.example` 和 WinSW。安装前把服务 XML 中的账号、路径和日志目录按实际目录校正，并限制 `.env`、`data\master.key`、`data\tls` 和数据库 ACL。更新时先停止服务并备份 `.env`、数据库、主密钥和 TLS 目录，再解压新版本、迁移并切换服务路径；不要用新包覆盖仍在运行的目录。
+
+需要修改源码、执行完整测试或自行生成发行包时，再使用下面的源码部署流程。源码构建仍使用唯一项目目录，`E:\server` 只放独立 Node、Go、WinSW 等工具，不放第二套 Relay Monitor。
 
 ## 1. 目录边界
 
@@ -96,13 +121,14 @@ LOG_LEVEL=info
 TRUST_PROXY=false
 MANAGED_RESTART=true
 SESSION_COOKIE_SECURE=auto
-WEB_ORIGIN=http://192.168.1.20:5173
 DATABASE_BUSY_TIMEOUT_MS=5000
 MAX_CONCURRENT_SITES=5
 OUTBOUND_ALLOWED_CIDRS=
 ~~~
 
 默认生产由 Fastify 在 `0.0.0.0:5173` 同时提供管理台和 API，受信 LAN 使用服务器实际 IPv4，例如 `http://192.168.1.20:5173`。`0.0.0.0` 只是监听地址，不能作为浏览器 URL。HTTP 不加密密码、Cookie 和管理数据，只能用于受信 LAN/VPN；公网或不受信网络必须在系统设置启用内置 HTTPS，或使用下文外部 HTTPS 反代。
+
+直连部署不需要填写 `WEB_ORIGIN`。它只是兼容旧部署的可选初始提示，不参与 CORS、CSRF、Cookie 或 TLS 判断；首次打开“系统设置 → 访问方式”时，管理台会把当前浏览器主机作为建议。若旧自动化仍写入该变量，留空或保留合法 HTTP(S) Origin 都兼容。
 
 直连保持 `TRUST_PROXY=false`。`MANAGED_RESTART=true` 仅适用于能够自动重新拉起进程的 WinSW 等托管方式；前台手工运行时保存访问方式后仍需手工重新启动。内置 HTTPS 始终使用 `Secure`/`__Host-` Cookie。因为管理台允许切回 HTTP，内置服务不发送持久 HSTS；只有确定入口永久保持 HTTPS 时才由外部代理配置 HSTS。外部 TLS 终止时必须显式设置 `SESSION_COOKIE_SECURE=true`，并填写精确代理地址。RFC1918 私网、`localhost` 和 IPv4/IPv6 回环 Webhook 默认可用，不需要写入 `OUTBOUND_ALLOWED_CIDRS`。该变量仍用于严格的站点出站例外，或管理员明确接受风险的公网 HTTP Webhook；只添加最小必要网段，不能使用无约束放行。
 
@@ -253,7 +279,7 @@ New-NetFirewallRule -DisplayName 'Relay Monitor LAN' -Direction Inbound -Action 
 
 不要在公网或不受信 Wi-Fi 上使用 HTTP。服务器证书可以来自公网 CA、组织 CA 或受信 LAN 私有 CA；使用私有 CA 时，每个客户端必须导入并信任公开 CA 证书，绝不能分发服务器私钥。
 
-如需用 Caddy/Nginx 统一管理域名和证书，可把应用改为 `HOST=127.0.0.1`、`PORT=5173`，设置精确 `TRUST_PROXY`、公开 HTTPS `WEB_ORIGIN`，并显式设置 `SESSION_COOKIE_SECURE=true`。默认 `auto` 只跟随内置 TLS；外部代理还必须自行发送 HSTS。反代 upstream 为 `http://127.0.0.1:5173`，应用在系统设置中保持 HTTP。不要同时让应用和代理争用同一端口，也不要把 `TRUST_PROXY` 设为任意来源。
+如需用 Caddy/Nginx 统一管理域名和证书，可把应用改为 `HOST=127.0.0.1`、`PORT=5173`，设置精确 `TRUST_PROXY`，并显式设置 `SESSION_COOKIE_SECURE=true`。默认 `auto` 只跟随内置 TLS；外部代理还必须转发正确的 Host/协议头并自行发送 HSTS。反代 upstream 为 `http://127.0.0.1:5173`，应用在系统设置中保持 HTTP。不要同时让应用和代理争用同一端口，也不要把 `TRUST_PROXY` 设为任意来源。
 
 ## 12. 备份与恢复
 
@@ -365,9 +391,9 @@ Get-ChildItem E:\github\Relay-Monitor\data\logs
 - **服务立即退出**：检查 Node 是否为 22.19+ 的 22.x、`.env`、主密钥、工作目录和 WinSW 日志。
 - **数据库只读或无法创建 WAL**：服务账号需要修改整个 `data` 目录。
 - **前端 404 或只显示 API JSON**：重新构建并确认 `dist\web\index.html` 存在。
-- **Cookie/CSRF 异常**：核对当前访问协议、主机和端口是否与系统访问方式及 `WEB_ORIGIN` 一致；协议切换后从新地址重新登录。
+- **Cookie/CSRF 异常**：核对当前访问协议、主机、端口和系统中已保存的访问方式；协议切换后从新地址重新登录。`WEB_ORIGIN` 不参与会话校验。
 - **保存 HTTPS 后服务退出**：检查证书与私钥是否匹配、证书 SAN 是否覆盖访问主机，以及服务账号是否可读取 `data\tls`；私钥不要粘贴到日志或工单。
-- **外部 HTTPS 反代会话异常**：显式设置 `SESSION_COOKIE_SECURE=true`，并核对精确 `TRUST_PROXY` 和 HTTPS `WEB_ORIGIN`；默认 `auto` 只跟随内置 TLS。
+- **外部 HTTPS 反代会话异常**：显式设置 `SESSION_COOKIE_SECURE=true`，并核对精确 `TRUST_PROXY`、Host 和转发协议头；默认 `auto` 只跟随内置 TLS。
 - **LAN 无法访问**：确认使用实际 IPv4，而不是 `0.0.0.0`；检查监听地址和 Windows 防火墙。
 - **私网 Webhook 被拦截**：RFC1918、`localhost` 和回环默认允许；若仍失败，检查目标是否实际解析到链路本地、云元数据、多播、保留、未指定或无效地址，这些地址不会因私网便利策略而放行。错误会以中文显示。
 - **内网上游被拦截**：站点适配器的严格出站策略没有放宽，只添加必要的 `OUTBOUND_ALLOWED_CIDRS`，不能用 `0.0.0.0/0` 绕过 SSRF。

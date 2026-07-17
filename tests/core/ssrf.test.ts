@@ -59,7 +59,7 @@ describe('outbound URL validation', () => {
   });
 
   it('keeps the default site/upstream policy strict when the Webhook policy is not selected', async () => {
-    const privateResolver = async () => [{ address: '192.168.31.76', family: 4 as const }];
+    const privateResolver = async () => [{ address: '192.168.1.20', family: 4 as const }];
     await expect(validateOutboundUrl('https://relay.example.com', {
       resolver: privateResolver,
     })).rejects.toThrow(/private or special-use/i);
@@ -68,7 +68,7 @@ describe('outbound URL validation', () => {
       resolver: privateResolver,
       allowWebhookPrivateAddresses: true,
     });
-    expect(webhookOnly.addresses).toEqual([{ address: '192.168.31.76', family: 4 }]);
+    expect(webhookOnly.addresses).toEqual([{ address: '192.168.1.20', family: 4 }]);
   });
 
   it('blocks cross-origin redirects and revalidates same-origin redirects', async () => {

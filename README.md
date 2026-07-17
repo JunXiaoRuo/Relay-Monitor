@@ -38,7 +38,7 @@ Relay Monitor 是面向单管理员或小团队的中转站监控与告警平台
                         Sub2API 适配器
 ~~~
 
-技术栈：Node.js 22、TypeScript、Fastify、Zod、Vue 3、Vite、Pinia、SQLite WAL、Drizzle、Decimal.js、AES-256-GCM、Argon2id、Vitest 和 Playwright。
+技术栈：Node.js 22、TypeScript、Fastify、Zod、Vue 3、Vite、Pinia、SQLite WAL、Drizzle、Decimal.js、AES-256-GCM、Argon2id、Vitest 和 Playwright；便携包另使用一个无业务逻辑的 Go 薄启动器生成 Windows PE/Linux ELF 入口。
 
 ~~~text
 backend/
@@ -52,6 +52,9 @@ frontend/src/   Vue 管理台
 shared/         前后端共享类型和通知事件
 deploy/         Linux、Caddy、Windows 样例
 docs/           开发与部署文档
+packaging/      原生启动器、便携配置、初始化和服务样例
+scripts/release 双平台打包与解压 smoke test
+.github/        Windows/Linux CI、artifact 与标签 Release
 tests/          单元、集成、端到端测试
 data/           本地数据和依赖缓存（不提交）
 ~~~
@@ -93,6 +96,74 @@ corepack pnpm admin:create -- --username admin --display-name "管理员"
 
 开发时 Vite 提供热更新，Fastify 提供 API；两者仍属于同一仓库，按一次 `Ctrl+C` 一起停止。`data/` 不是另一套服务。详见 [开发文档](docs/development.md)。
 
+## Windows/Linux 便携发行包
+
+GitHub Actions 会在固定的 Windows 2022 和 Ubuntu 22.04 环境分别安装平台原生依赖，生成并上传：
+
+- `relay-monitor-<版本>-windows-x64.zip`：包含 `RelayMonitor.exe`、Node.js 22.23.1、Windows 原生依赖和完整 Web/API 产物。
+- `relay-monitor-<版本>-linux-x64.tar.gz`：包含 Linux ELF 启动器、Node.js 22.23.1、Linux 原生依赖和完整 Web/API 产物。
+
+这两个文件是“目录便携包”，不是把整个程序压成一个真正的单文件。`argon2`、`better-sqlite3`、数据库迁移和 `dist/web` 必须与启动器一起保留；Windows 和 Linux 的包不能互换。下载包的机器不需要另外安装 Node.js，首次运行只需执行包内初始化脚本：
+
+```powershell
+# Windows
+$InstallRoot = Join-Path $env:USERPROFILE 'RelayMonitor'
+Expand-Archive .\relay-monitor-0.1.0-windows-x64.zip -DestinationPath $InstallRoot
+Set-Location (Join-Path $InstallRoot 'relay-monitor-0.1.0-windows-x64')
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+.\RelayMonitor.exe admin create --username admin --display-name "管理员"
+.\RelayMonitor.exe start
+```
+
+```bash
+# Linux x64
+mkdir -p "$HOME/relay-monitor"
+tar -xzf relay-monitor-0.1.0-linux-x64.tar.gz -C "$HOME/relay-monitor"
+cd "$HOME/relay-monitor/relay-monitor-0.1.0-linux-x64"
+./setup.sh
+./relay-monitor admin create --username admin --display-name 管理员
+./relay-monitor start
+```
+
+初始化会创建本地 `.env`、32 字节主密钥和 SQLite 数据库迁移；不会覆盖已有配置、数据库或密钥。`HOST=0.0.0.0` 只代表监听全部网卡，浏览器应使用 `127.0.0.1` 或服务器真实 LAN IP。直连部署不需要填写 `WEB_ORIGIN`，详情见 [发行包说明](packaging/README.md)。正式长期运行建议把 `DATA_DIR`、`DATABASE_URL` 和 `MASTER_KEY_FILE` 改到受控持久目录，再使用包内的 systemd/WinSW 样例托管。
+
+### 本地构建便携包
+
+本地构建需要 Node.js 22、pnpm 11.7.0、Go 1.26.5 或更新版本；运行包本身不需要 Go。先完成普通检查和构建，再调用对应平台脚本：
+
+```powershell
+corepack pnpm install --frozen-lockfile
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+$Version = (node -p "require('./package.json').version").Trim()
+./scripts/release/build-windows.ps1 -Version $Version -OutputDirectory artifacts -SkipApplicationBuild
+./scripts/release/smoke-windows.ps1 -ArchivePath "artifacts/relay-monitor-$Version-windows-x64.zip" -ExpectedVersion $Version
+```
+
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+VERSION=$(node -p "require('./package.json').version")
+bash scripts/release/build-linux.sh --version "$VERSION" --output-dir artifacts --skip-application-build
+bash scripts/release/smoke-linux.sh --archive "artifacts/relay-monitor-$VERSION-linux-x64.tar.gz" --expected-version "$VERSION"
+```
+
+构建脚本会从 `nodejs.org` 下载 Node 22.23.1 并核对官方 SHA-256，生产依赖在目标平台重新安装；Linux 包在 Ubuntu 22.04 构建，面向 x64/glibc，不适用于 Alpine/musl 或 ARM。脚本会解压包、加载 `argon2` 与 `better-sqlite3`、执行迁移、启动服务并检查 `/readyz`。
+
+### GitHub Actions 发布
+
+每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会执行双平台检查并生成保留 14 天的 Actions artifact。将 `package.json` 版本设为 `0.1.0` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+标签必须与 `package.json` 完全一致；工作流会创建 GitHub Release，并附带两个发行包和 `SHA256SUMS.txt`。未签名的 Windows 可执行文件可能触发 SmartScreen“未知发布者”提示，先核对 Release 校验值；代码签名证书不能放入仓库或 Actions 普通变量。
+
 ## 生产部署
 
 ~~~bash
@@ -102,11 +173,11 @@ node --env-file=.env dist/server/backend/cli/migrate.js
 node --env-file=.env dist/server/backend/server.js
 ~~~
 
-生产必须提前创建 `MASTER_KEY_FILE` 指向的 32 字节随机主密钥。默认由 Fastify 在 `0.0.0.0:5173` 同时提供 Web 和 API，受信局域网使用服务器实际 IPv4 访问，例如 `http://192.168.31.76:5173`；`0.0.0.0` 只是监听地址。防火墙应只允许实际管理网段访问该端口。
+生产必须提前创建 `MASTER_KEY_FILE` 指向的 32 字节随机主密钥。默认由 Fastify 在 `0.0.0.0:5173` 同时提供 Web 和 API，受信局域网使用服务器实际 IPv4 访问，例如 `http://192.168.1.20:5173`；`0.0.0.0` 只是监听地址。防火墙应只允许实际管理网段访问该端口。
 
 首次登录后可在“系统设置 → 访问方式”选择 HTTP/HTTPS、填写实际访问 IP 或域名，并在启用 HTTPS 时同时提交 PEM 服务器证书和私钥。保存后，受 systemd 等托管且启用 `MANAGED_RESTART=true` 的实例会自动重启应用；协议切换会使现有会话失效，需要从新地址重新登录。私钥不会通过 API 或管理台回填。内置 HTTPS 始终使用 `Secure`/`__Host-` 会话 Cookie；由于管理台允许切回 HTTP，内置服务不发送会让浏览器长期强制升级的 HSTS。只在确定入口永久保持 HTTPS 时，才由外部反向代理配置 HSTS。
 
-HTTP 下管理员密码、会话 Cookie 和管理数据均为明文传输，因此只允许在受信 LAN/VPN 使用。公网、访客 Wi-Fi 或其他不受信链路必须切换内置 HTTPS；Caddy/Nginx 仍可作为域名、统一入口或集中证书管理的可选方案。`WEB_ORIGIN` 必须与浏览器实际 Origin 完全一致。Linux 的迁移、管理员和主密钥 CLI 必须通过 `node --env-file=/etc/relay-monitor/monitor.env dist/...` 显式加载生产配置，不能依赖源码目录中的 `.env`。这项访问方式调整不新增、移除或改变任何通知事件。
+HTTP 下管理员密码、会话 Cookie 和管理数据均为明文传输，因此只允许在受信 LAN/VPN 使用。公网、访客 Wi-Fi 或其他不受信链路必须切换内置 HTTPS；Caddy/Nginx 仍可作为域名、统一入口或集中证书管理的可选方案。`WEB_ORIGIN` 是兼容旧部署的可选初始地址提示，不参与 CORS、CSRF、Cookie 或 TLS 安全判断，直连部署无需填写。Linux 的迁移、管理员和主密钥 CLI 必须通过 `node --env-file=/etc/relay-monitor/monitor.env dist/...` 显式加载生产配置，不能依赖源码目录中的 `.env`。这项访问方式调整不新增、移除或改变任何通知事件。
 
 - [Windows Server 部署](docs/deployment-windows.md)：继续使用唯一项目目录 `E:\github\Relay-Monitor`；`E:\server` 只放 Node、WinSW 等独立工具，不建立第二套 Relay Monitor。
 - [Linux 直接部署](docs/deployment-linux.md)：systemd、内置 HTTP/HTTPS、可选 Caddy/Nginx、权限、备份和密钥轮换。`/root/RelayMonitor` 可作为源码/构建工作区，运行版本安装到 `/opt/relay-monitor/releases` 并由非 root 用户托管。
@@ -128,12 +199,12 @@ HTTP 下管理员密码、会话 Cookie 和管理数据均为明文传输，因�
 | `TRUST_PROXY` | 受信反代地址 | 直连为 `false`；使用反代时填写精确地址/CIDR |
 | `MANAGED_RESTART` | 允许管理台保存访问方式后退出并由托管服务拉起 | systemd/WinSW 等自动重启部署设为 `true` |
 | `SESSION_COOKIE_SECURE` | 会话 Cookie 安全模式：`auto/true/false` | 默认 `auto` 跟随内置 TLS；外部 HTTPS 反代必须设 `true`；`false` 仅限临时本地诊断 |
-| `WEB_ORIGIN` | 初始管理台完整 Origin | LAN HTTP 如 `http://192.168.31.76:5173`；随后可在系统设置修改 |
+| `WEB_ORIGIN` | 可选的旧版初始地址提示 | 通常省略；只影响尚未保存“访问方式”时的提示，不是安全配置 |
 | `DATABASE_BUSY_TIMEOUT_MS` | SQLite 锁等待毫秒 | 默认 `5000` |
 | `MAX_CONCURRENT_SITES` | 同时采集站点数 | 默认 `5` |
 | `OUTBOUND_ALLOWED_CIDRS` | 额外允许的出站 CIDR | 默认空；站点出站或公网 HTTP Webhook 确需例外时只加必要网段 |
 
-脚本会把这些参数映射到 `HOST`、`PORT`、`RELAY_WEB_HOST`、`RELAY_WEB_PORT`、`RELAY_API_PORT`。Vite host/Web 端口只用于开发；生产 Web 与 API 共用 `PORT`。生产不会自动生成主密钥，缺失时拒绝启动。系统访问方式记录保存在运行数据中；切换内置 HTTPS 后，证书和私钥写入 `DATA_DIR/tls`，私钥采用限制权限且永不回填。
+脚本会把这些参数映射到 `HOST`、`PORT`、`RELAY_WEB_HOST`、`RELAY_WEB_PORT`、`RELAY_API_PORT`。Vite host/Web 端口只用于开发；生产 Web 与 API 共用 `PORT`。生产服务进程不会自动生成主密钥，缺失时拒绝启动；便携包的首次初始化脚本会显式、安全地创建它。系统访问方式记录保存在运行数据中；切换内置 HTTPS 后，证书和私钥写入 `DATA_DIR/tls`，私钥采用限制权限且永不回填。
 
 ## 管理员
 
@@ -350,7 +421,11 @@ corepack pnpm build
 
 ### 如何把生产 HTTP 切换成 HTTPS？
 
-先通过受信局域网地址登录，在“系统设置 → 访问方式”选择 HTTPS、填写客户端实际使用的 IP/域名，并同时粘贴匹配的 PEM 证书和私钥。保存后托管服务会在启用 `MANAGED_RESTART=true` 时自动拉起应用；稍候从界面给出的新地址重新登录。证书必须覆盖填写的 IP/域名，客户端还必须信任签发 CA。私钥不会回填；内置 TLS 文件位于 `DATA_DIR/tls`，需随数据备份。若 TLS 在外部 Caddy/Nginx 终止，设置精确 `TRUST_PROXY`/`WEB_ORIGIN`，并显式设 `SESSION_COOKIE_SECURE=true`；否则默认 `auto` 只跟随内置 TLS。
+先通过受信局域网地址登录，在“系统设置 → 访问方式”选择 HTTPS、填写客户端实际使用的 IP/域名，并同时粘贴匹配的 PEM 证书和私钥。保存后托管服务会在启用 `MANAGED_RESTART=true` 时自动拉起应用；稍候从界面给出的新地址重新登录。证书必须覆盖填写的 IP/域名，客户端还必须信任签发 CA。私钥不会回填；内置 TLS 文件位于 `DATA_DIR/tls`，需随数据备份。若 TLS 在外部 Caddy/Nginx 终止，设置精确 `TRUST_PROXY` 并显式设 `SESSION_COOKIE_SECURE=true`；否则默认 `auto` 只跟随内置 TLS。
+
+### 部署时必须填写 `WEB_ORIGIN` 吗？
+
+不需要。服务由 `HOST` 和 `PORT` 监听，浏览器直接使用服务器实际 IP 或域名访问；管理台会显示当前浏览器地址，并在首次保存“访问方式”时提供主机建议。`WEB_ORIGIN` 只为旧部署保留为可选提示，省略或留空都可以。不要填写 `0.0.0.0`，也不要把某台机器的 LAN IP 写进通用模板。
 
 ### `0.0.0.0` 为什么打不开？
 
@@ -366,7 +441,7 @@ corepack pnpm build
 
 ### Windows 可以长期部署吗？
 
-可以。需要 Node 22、持久数据/密钥目录、ACL 和服务托管；受信 LAN 可从 HTTP `:5173` 开始，公网或不受信网络必须启用 HTTPS。见 [Windows 部署](docs/deployment-windows.md)。
+可以。便携包已经包含 Node 22；源码部署才需要单独安装 Node。两种方式都需要持久数据/密钥目录、ACL 和服务托管；受信 LAN 可从 HTTP `:5173` 开始，公网或不受信网络必须启用 HTTPS。见 [Windows 部署](docs/deployment-windows.md)。
 
 ### 标签会修改上游分组吗？
 

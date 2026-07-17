@@ -13,6 +13,9 @@ frontend/
   src/          Vue 管理台
 shared/         前后端共享的稳定领域类型
 deploy/         systemd、Windows 服务、内置 TLS 与可选反向代理样例
+packaging/      原生启动器、便携包初始化与服务样例
+scripts/release Windows/Linux 打包和解压 smoke test
+.github/        双平台 CI、artifact 与标签 Release
 tests/          单元、集成和端到端测试
 data/           Windows 本地数据库、主密钥和依赖缓存（不提交）
 ```
@@ -41,10 +44,10 @@ Windows 开发环境是一个项目、一个数据目录和一个启动命令。
 
 ## 生产访问方式契约
 
-- 初始生产入口由 `HOST`、`PORT` 和 `WEB_ORIGIN` 提供，部署样例为 LAN HTTP `0.0.0.0:5173`；浏览器必须使用实际 IP/域名而不是 `0.0.0.0`。
+- 初始生产监听由 `HOST` 和 `PORT` 提供，部署样例为 LAN HTTP `0.0.0.0:5173`；浏览器必须使用实际 IP/域名而不是 `0.0.0.0`。`WEB_ORIGIN` 仅是兼容旧部署的可选初始提示，不参与安全判断；未保存访问方式时，前端只把 `window.location.hostname` 作为表单建议，不自动持久化。
 - 管理员在“系统设置 → 访问方式”选择 HTTP/HTTPS 和访问主机。HTTPS 必须同时提交匹配的 PEM 证书与私钥；私钥永不通过读取 API 或管理台回填，生效副本存放在 `DATA_DIR/tls` 并使用限制权限。
 - 保存协议、主机或证书后需要进程重启。`MANAGED_RESTART=true` 只表示当前服务由 systemd/WinSW 等自动拉起机制托管；无法自动拉起时 API/UI 必须明确返回“需要重启”，不能假装已经生效。协议切换后要求重新登录。
-- 内置 TLS 生效时始终使用 `Secure`/`__Host-` Cookie，不允许 `SESSION_COOKIE_SECURE=false` 降级。默认 `auto` 不根据 `NODE_ENV` 推断；外部 Caddy/Nginx 终止 TLS 时必须显式设为 `true`，并配置精确 `TRUST_PROXY` 和 HTTPS `WEB_ORIGIN`。内置服务允许切回 HTTP，因此不发送持久 HSTS；只有确定入口永久保持 HTTPS 时才由外部代理配置 HSTS。显式 `false` 只用于临时 HTTP 本地诊断。
+- 内置 TLS 生效时始终使用 `Secure`/`__Host-` Cookie，不允许 `SESSION_COOKIE_SECURE=false` 降级。默认 `auto` 不根据 `NODE_ENV` 推断；外部 Caddy/Nginx 终止 TLS 时必须显式设为 `true`，配置精确 `TRUST_PROXY` 并转发正确的 Host/协议头。内置服务允许切回 HTTP，因此不发送持久 HSTS；只有确定入口永久保持 HTTPS 时才由外部代理配置 HSTS。显式 `false` 只用于临时 HTTP 本地诊断。
 - HTTP 会明文传输管理员密码、会话和管理数据，只允许受信 LAN/VPN。公网暴露必须使用 HTTPS、防火墙和最小访问范围。
 - 访问方式属于服务运行与安全配置，不新增、移除或改变 `shared/notification-events.ts` 中的任何通知事件。
 

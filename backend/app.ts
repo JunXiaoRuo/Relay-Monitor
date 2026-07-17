@@ -33,8 +33,9 @@ import {
   authenticateAdminRequest,
   registerSessionRoutes,
 } from './routes/session.js';
-import { createSchedulerRuntime } from './services/scheduler-runtime.js';
 import { createOutboxWorker } from './services/outbox-worker.js';
+import { createSchedulerRuntime } from './services/scheduler-runtime.js';
+import { serverAccessUrl } from './services/server-access-settings.js';
 
 export interface BuildAppOptions {
   context?: AppContext;
@@ -222,7 +223,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     return {
       name: 'Relay Monitor',
       status: 'api_ready',
-      web: context.config.webOrigin,
+      web: serverAccessUrl(
+        context.serverAccess.protocol,
+        context.serverAccess.settings.accessHost,
+        context.config.port,
+      ),
     };
   });
 

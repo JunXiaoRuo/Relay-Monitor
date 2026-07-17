@@ -10,7 +10,10 @@ import { loadConfig } from '../../backend/config.js';
 import { createAppContext } from '../../backend/context.js';
 import { hashAdminPassword } from '../../backend/core/password.js';
 import { admins, auditLogs, serverAccessSettings } from '../../backend/db/index.js';
-import { storeTlsMaterial } from '../../backend/services/server-access-settings.js';
+import {
+  readServerAccessSettings,
+  storeTlsMaterial,
+} from '../../backend/services/server-access-settings.js';
 
 const certificatePem = readFileSync(resolve('tests/fixtures/server-access-test.crt.pem'), 'utf8');
 const privateKeyPem = readFileSync(resolve('tests/fixtures/server-access-test.key.pem'), 'utf8');
@@ -28,6 +31,51 @@ afterEach(() => {
 });
 
 describe('server access settings API', () => {
+  it('falls back from a legacy origin to a concrete listen host and then loopback', async () => {
+    const scenarios = [
+      {
+        host: '0.0.0.0',
+        webOrigin: 'https://Legacy.Example.com:8443',
+        expected: 'legacy.example.com',
+      },
+      { host: 'monitor.internal', webOrigin: '', expected: 'monitor.internal' },
+      { host: '0.0.0.0', webOrigin: '   ', expected: '127.0.0.1' },
+    ];
+
+    for (const [index, scenario] of scenarios.entries()) {
+      const directory = mkdtempSync(join(tmpdir(), `relay-monitor-server-access-fallback-${index}-`));
+      temporaryDirectories.push(directory);
+      const config = loadConfig({
+        NODE_ENV: 'test',
+        DATA_DIR: directory,
+        DATABASE_URL: join(directory, 'monitor.db'),
+        MASTER_KEY_FILE: join(directory, 'master.key'),
+        HOST: scenario.host,
+        PORT: '5173',
+        WEB_ORIGIN: scenario.webOrigin,
+        LOG_LEVEL: 'silent',
+      });
+      const context = createAppContext(config);
+      try {
+        expect(readServerAccessSettings(context.database, config)).toMatchObject({
+          accessHost: scenario.expected,
+          updatedAt: null,
+        });
+
+        if (index === 1) {
+          context.database.db.insert(serverAccessSettings).values({
+            id: 'global',
+            tlsEnabled: false,
+            accessHost: 'saved.example.com',
+          }).run();
+          expect(readServerAccessSettings(context.database, config).accessHost).toBe('saved.example.com');
+        }
+      } finally {
+        await context.close();
+      }
+    }
+  });
+
   it('removes uncommitted and superseded TLS material', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'relay-monitor-server-access-cleanup-'));
     temporaryDirectories.push(directory);
@@ -158,6 +206,8 @@ describe('server access settings API', () => {
         active_protocol: 'http',
         access_host: '127.0.0.1',
         listen_port: 5173,
+        active_url: 'http://127.0.0.1:5173',
+        next_url: 'http://127.0.0.1:5173',
         restart_required: false,
         certificate: { configured: false },
       });
@@ -176,7 +226,7 @@ describe('server access settings API', () => {
         headers: { cookie, 'x-csrf-token': csrf },
         payload: {
           protocol: 'https',
-          access_host: '192.168.31.76',
+          access_host: '192.168.1.20',
           certificate_pem: certificatePem,
           private_key_pem: privateKeyPem,
         },
