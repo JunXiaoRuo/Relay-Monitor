@@ -1,0 +1,174 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1784029245711,
+      "tag": "0000_initial",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784037128241,
+      "tag": "0001_soft_delete_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784037544929,
+      "tag": "0002_soft_delete_routes_maintenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784039682340,
+      "tag": "0003_rate_model_probes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784040317102,
+      "tag": "0004_rate_probe_token_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784046671309,
+      "tag": "0005_rate_scope_probe_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784048286588,
+      "tag": "0006_probe_scheduler_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784049000000,
+      "tag": "0007_probe_schedule_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784049100000,
+      "tag": "0008_audit_log_soft_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784049322745,
+      "tag": "0009_maintenance_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784091892493,
+      "tag": "0010_migrate_notification_routes_to_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784092000529,
+      "tag": "0011_incident_soft_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1784113108931,
+      "tag": "0012_needy_jetstream",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1784120322132,
+      "tag": "0013_careful_cargill",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1784124662709,
+      "tag": "0014_concerned_corsair",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1784125544151,
+      "tag": "0015_remove_event_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1784128424724,
+      "tag": "0016_clear_legacy_webhook_plaintext",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1784132589010,
+      "tag": "0017_rate_probe_retry_defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1784138525512,
+      "tag": "0018_cheerful_wrecking_crew",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1784198829483,
+      "tag": "0019_close_replaced_rule_incidents",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1784204888574,
+      "tag": "0020_rate_probe_timeout",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784209414348,
+      "tag": "0021_immediate_rate_events_auth_root",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1784212852119,
+      "tag": "0022_reconcile_auth_root_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784249035630,
+      "tag": "0023_dashing_warstar",
+      "breakpoints": true
+    }
+  ]
+}

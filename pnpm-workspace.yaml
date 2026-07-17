@@ -1,0 +1,7 @@
+allowBuilds:
+  argon2: true
+  better-sqlite3: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@fastify/swagger@9.8.1'
+  - '@vitejs/plugin-vue@6.0.8'

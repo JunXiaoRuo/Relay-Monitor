@@ -1,0 +1,26 @@
+<service>
+  <id>RelayMonitor</id>
+  <name>Relay Monitor</name>
+  <description>Relay Monitor relay monitoring and notification service</description>
+
+  <!-- E:\server contains the external Node runtime; the project remains under E:\github. -->
+  <executable>E:\server\nodejs\node.exe</executable>
+  <arguments>--env-file=&quot;E:\github\Relay-Monitor\.env&quot; &quot;dist\server\backend\server.js&quot;</arguments>
+  <workingdirectory>E:\github\Relay-Monitor</workingdirectory>
+
+  <serviceaccount>
+    <username>NT AUTHORITY\NetworkService</username>
+  </serviceaccount>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="15 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <logpath>E:\github\Relay-Monitor\data\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

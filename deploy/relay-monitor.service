@@ -1,0 +1,26 @@
+[Unit]
+Description=Relay Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=relaymon
+Group=relaymon
+WorkingDirectory=/opt/relay-monitor/current
+EnvironmentFile=/etc/relay-monitor/monitor.env
+ExecStart=/usr/bin/node dist/server/backend/server.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/relay-monitor
+ReadOnlyPaths=/etc/relay-monitor
+
+[Install]
+WantedBy=multi-user.target
