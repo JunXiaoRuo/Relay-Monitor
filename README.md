@@ -4,7 +4,7 @@ Relay Monitor 是面向单管理员或小团队的中转站监控与告警平台
 
 项目支持 Windows 开发与部署，也支持 Linux。生产构建由一个 Node.js 进程同时提供 API、调度器、通知 Worker 和 Web 管理台，不需要再启动第二个 `server` 项目、独立 SQLite 服务、MySQL 或 Docker。
 
-> 当前版本为 `0.1.0`。公网部署前必须配置 HTTPS、可靠备份和严格文件权限。
+> 当前版本为 `1.0.0`。公网部署前必须配置 HTTPS、可靠备份和严格文件权限。
 
 ## 功能
 
@@ -108,8 +108,8 @@ GitHub Actions 会在固定的 Windows 2022 和 Ubuntu 22.04 环境分别安装�
 ```powershell
 # Windows
 $InstallRoot = Join-Path $env:USERPROFILE 'RelayMonitor'
-Expand-Archive .\relay-monitor-0.1.0-windows-x64.zip -DestinationPath $InstallRoot
-Set-Location (Join-Path $InstallRoot 'relay-monitor-0.1.0-windows-x64')
+Expand-Archive .\relay-monitor-1.0.0-windows-x64.zip -DestinationPath $InstallRoot
+Set-Location (Join-Path $InstallRoot 'relay-monitor-1.0.0-windows-x64')
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 .\RelayMonitor.exe admin create --username admin --display-name "管理员"
 .\RelayMonitor.exe start
@@ -118,8 +118,8 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```bash
 # Linux x64
 mkdir -p "$HOME/relay-monitor"
-tar -xzf relay-monitor-0.1.0-linux-x64.tar.gz -C "$HOME/relay-monitor"
-cd "$HOME/relay-monitor/relay-monitor-0.1.0-linux-x64"
+tar -xzf relay-monitor-1.0.0-linux-x64.tar.gz -C "$HOME/relay-monitor"
+cd "$HOME/relay-monitor/relay-monitor-1.0.0-linux-x64"
 ./setup.sh
 ./relay-monitor admin create --username admin --display-name 管理员
 ./relay-monitor start
@@ -155,11 +155,11 @@ bash scripts/release/smoke-linux.sh --archive "artifacts/relay-monitor-$VERSION-
 
 ### GitHub Actions 发布
 
-每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会执行双平台检查并生成保留 14 天的 Actions artifact。将 `package.json` 版本设为 `0.1.0` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
+每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会执行双平台检查并生成保留 14 天的 Actions artifact。将 `package.json` 版本设为 `1.0.0` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 标签必须与 `package.json` 完全一致；工作流会创建 GitHub Release，并附带两个发行包和 `SHA256SUMS.txt`。未签名的 Windows 可执行文件可能触发 SmartScreen“未知发布者”提示，先核对 Release 校验值；代码签名证书不能放入仓库或 Actions 普通变量。

@@ -13,11 +13,11 @@ Relay Monitor 支持“GitHub Release 便携包”和“源码构建”两种 Wi
 推荐普通用户从 GitHub Actions artifact 或 GitHub Release 下载 `relay-monitor-<版本>-windows-x64.zip`。先核对 Release 中 `SHA256SUMS.txt`，再解压并初始化：
 
 ~~~powershell
-$Archive = '.\relay-monitor-0.1.0-windows-x64.zip'
+$Archive = '.\relay-monitor-1.0.0-windows-x64.zip'
 $InstallRoot = Join-Path $env:USERPROFILE 'RelayMonitor'
 (Get-FileHash -Algorithm SHA256 $Archive).Hash
 Expand-Archive $Archive -DestinationPath $InstallRoot
-Set-Location (Join-Path $InstallRoot 'relay-monitor-0.1.0-windows-x64')
+Set-Location (Join-Path $InstallRoot 'relay-monitor-1.0.0-windows-x64')
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 .\RelayMonitor.exe admin create --username admin --display-name "管理员"
 .\RelayMonitor.exe start

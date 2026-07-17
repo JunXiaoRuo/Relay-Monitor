@@ -13,8 +13,8 @@ Relay Monitor 生产环境只运行一个 Node.js 进程，由它同时提供 AP
 ```bash
 sha256sum --check SHA256SUMS.txt
 mkdir -p "$HOME/relay-monitor-demo"
-tar -xzf relay-monitor-0.1.0-linux-x64.tar.gz -C "$HOME/relay-monitor-demo"
-cd "$HOME/relay-monitor-demo/relay-monitor-0.1.0-linux-x64"
+tar -xzf relay-monitor-1.0.0-linux-x64.tar.gz -C "$HOME/relay-monitor-demo"
+cd "$HOME/relay-monitor-demo/relay-monitor-1.0.0-linux-x64"
 ./setup.sh
 ./relay-monitor admin create --username admin --display-name 管理员
 ./relay-monitor start
