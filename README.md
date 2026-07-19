@@ -2,7 +2,7 @@
 
 Relay Monitor 是面向单管理员或小团队的中转站监控与告警平台。它把连通性、认证、余额、倍率和模型实测拆成独立任务，通过适配器接入上游。当前内置并经过契约测试的适配器是 Sub2API。
 
-项目支持 Windows 开发与部署，也支持 Linux。生产构建由一个 Node.js 进程同时提供 API、调度器、通知 Worker 和 Web 管理台，不需要再启动第二个 `server` 项目、独立 SQLite 服务、MySQL 或 Docker。
+项目支持 Windows 开发与部署、Linux 部署，并提供 macOS 原生测试便携包。生产构建由一个 Node.js 进程同时提供 API、调度器、通知 Worker 和 Web 管理台，不需要再启动第二个 `server` 项目、独立 SQLite 服务、MySQL 或 Docker。
 
 > 当前版本为 `1.0.1`。公网部署前必须配置 HTTPS、可靠备份和严格文件权限。
 
@@ -38,7 +38,7 @@ Relay Monitor 是面向单管理员或小团队的中转站监控与告警平台
                         Sub2API 适配器
 ~~~
 
-技术栈：Node.js 22、TypeScript、Fastify、Zod、Vue 3、Vite、Pinia、SQLite WAL、Drizzle、Decimal.js、AES-256-GCM、Argon2id、Vitest 和 Playwright；便携包另使用一个无业务逻辑的 Go 薄启动器生成 Windows PE/Linux ELF 入口。
+技术栈：Node.js 22、TypeScript、Fastify、Zod、Vue 3、Vite、Pinia、SQLite WAL、Drizzle、Decimal.js、AES-256-GCM、Argon2id、Vitest 和 Playwright；便携包另使用一个无业务逻辑的 Go 薄启动器生成 Windows PE、Linux ELF 或 macOS Mach-O 入口。
 
 ~~~text
 backend/
@@ -53,8 +53,8 @@ shared/         前后端共享类型和通知事件
 deploy/         Linux、Caddy、Windows 样例
 docs/           开发与部署文档
 packaging/      原生启动器、便携配置、初始化和服务样例
-scripts/release 双平台打包与解压 smoke test
-.github/        Windows/Linux CI、artifact 与标签 Release
+scripts/release Windows/Linux/macOS 打包与解压 smoke test
+.github/        三种操作系统 CI、artifact 与标签 Release
 tests/          单元、集成、端到端测试
 data/           本地数据和依赖缓存（不提交）
 ~~~
@@ -65,7 +65,7 @@ data/           本地数据和依赖缓存（不提交）
 
 - Node.js `22.19.0` 或更新的 22.x；项目拒绝 Node 23/24。
 - pnpm `>= 10`；仓库声明 `11.7.0`，推荐使用 Corepack。
-- Windows PowerShell 5.1/7 或常见 Linux shell。
+- Windows PowerShell 5.1/7，或常见 Linux/macOS shell。
 - Webhook 渠道支持 HTTP/HTTPS。RFC1918 私网、`localhost` 和 IPv4/IPv6 回环可直接使用 HTTP；公网生产 Webhook 必须使用 HTTPS，除非管理员通过 `OUTBOUND_ALLOWED_CIDRS` 明确放行其全部解析地址。
 
 ## Windows 开发
@@ -97,14 +97,16 @@ corepack pnpm admin:create -- --username admin --display-name "管理员"
 
 开发时 Vite 提供热更新，Fastify 提供 API；两者仍属于同一仓库，按一次 `Ctrl+C` 一起停止。`data/` 不是另一套服务。详见 [开发文档](docs/development.md)。
 
-## Windows/Linux 便携发行包
+## Windows/Linux/macOS 便携发行包
 
-GitHub Actions 会在固定的 Windows 2022 和 Ubuntu 22.04 环境分别安装平台原生依赖，生成并上传：
+GitHub Actions 会在 Windows 2022、Ubuntu 22.04、`macos-15`（arm64）和 `macos-15-intel`（x64）runner 上分别安装平台原生依赖，生成并上传四个发行包。当前 macOS 兼容基线为 macOS 15：
 
 - `relay-monitor-<版本>-windows-x64.zip`：包含 `RelayMonitor.exe`、Node.js 22.23.1、Windows 原生依赖和完整 Web/API 产物。
 - `relay-monitor-<版本>-linux-x64.tar.gz`：包含 Linux ELF 启动器、Node.js 22.23.1、Linux 原生依赖和完整 Web/API 产物。
+- `relay-monitor-<版本>-macos-arm64.tar.gz`：面向 Apple Silicon，包含 arm64 Mach-O 启动器、Node.js 22.23.1、macOS arm64 原生依赖和完整 Web/API 产物。
+- `relay-monitor-<版本>-macos-x64.tar.gz`：面向 Intel Mac，包含 x64 Mach-O 启动器、Node.js 22.23.1、macOS x64 原生依赖和完整 Web/API 产物。
 
-这两个文件是“目录便携包”，不是把整个程序压成一个真正的单文件。`argon2`、`better-sqlite3`、数据库迁移和 `dist/web` 必须与启动器一起保留；Windows 和 Linux 的包不能互换。下载包的机器不需要另外安装 Node.js，首次运行只需执行包内初始化脚本：
+这些文件是“目录便携包”，不是把整个程序压成一个真正的单文件，也不是 macOS 图形界面的 `.app` 或 `.dmg`。`argon2`、`better-sqlite3`、数据库迁移和 `dist/web` 必须与启动器一起保留；四个包不能跨系统或跨 CPU 架构互换。下载包的机器不需要另外安装 Node.js，首次运行只需执行包内初始化脚本：
 
 ```powershell
 # Windows
@@ -126,7 +128,22 @@ cd "$HOME/relay-monitor/relay-monitor-1.0.1-linux-x64"
 ./relay-monitor start
 ```
 
-初始化会创建本地 `.env`、32 字节主密钥和 SQLite 数据库迁移；不会覆盖已有配置、数据库或密钥。`HOST=0.0.0.0` 只代表监听全部网卡，浏览器应使用 `127.0.0.1` 或服务器真实 LAN IP。直连部署不需要填写 `WEB_ORIGIN`，详情见 [发行包说明](packaging/README.md)。正式长期运行建议把 `DATA_DIR`、`DATABASE_URL` 和 `MASTER_KEY_FILE` 改到受控持久目录，再使用包内的 systemd/WinSW 样例托管。
+```bash
+# macOS：Apple Silicon 使用 arm64，Intel Mac 使用 x64
+case "$(uname -m)" in
+  arm64) ARCH=arm64 ;;
+  x86_64) ARCH=x64 ;;
+  *) echo "当前 CPU 架构没有对应的 Relay Monitor macOS 包" >&2; exit 1 ;;
+esac
+mkdir -p "$HOME/relay-monitor"
+tar -xzf "relay-monitor-1.0.1-macos-$ARCH.tar.gz" -C "$HOME/relay-monitor"
+cd "$HOME/relay-monitor/relay-monitor-1.0.1-macos-$ARCH"
+./setup.sh
+./relay-monitor admin create --username admin --display-name 管理员
+./relay-monitor start
+```
+
+初始化会创建本地 `.env`、32 字节主密钥和 SQLite 数据库迁移；不会覆盖已有配置、数据库或密钥。`HOST=0.0.0.0` 只代表监听全部网卡，浏览器应使用 `127.0.0.1` 或服务器真实 LAN IP。直连部署不需要填写 `WEB_ORIGIN`，详情见 [发行包说明](packaging/README.md)。Windows/Linux 正式长期运行建议把 `DATA_DIR`、`DATABASE_URL` 和 `MASTER_KEY_FILE` 改到受控持久目录，再使用对应包内的 systemd/WinSW 样例托管。macOS 包当前只用于手工测试，不包含 `service/`，也不会自动安装 `launchd` 服务，详见 [macOS 测试部署](docs/deployment-macos.md)。
 
 ### 本地构建便携包
 
@@ -152,18 +169,30 @@ bash scripts/release/build-linux.sh --version "$VERSION" --output-dir artifacts 
 bash scripts/release/smoke-linux.sh --archive "artifacts/relay-monitor-$VERSION-linux-x64.tar.gz" --expected-version "$VERSION"
 ```
 
-构建脚本会从 `nodejs.org` 下载 Node 22.23.1 并核对官方 SHA-256，生产依赖在目标平台重新安装；Linux 包在 Ubuntu 22.04 构建，面向 x64/glibc，不适用于 Alpine/musl 或 ARM。脚本会解压包、加载 `argon2` 与 `better-sqlite3`、执行迁移、启动服务并检查 `/readyz`。
+```bash
+# 必须在与目标包同架构的 Mac 上执行：Apple Silicon 为 arm64，Intel Mac 为 x64
+ARCH=arm64
+corepack pnpm install --frozen-lockfile
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+VERSION=$(node -p "require('./package.json').version")
+bash scripts/release/build-macos.sh --version "$VERSION" --arch "$ARCH" --output-dir artifacts --skip-application-build
+bash scripts/release/smoke-macos.sh --archive "artifacts/relay-monitor-$VERSION-macos-$ARCH.tar.gz" --expected-version "$VERSION" --expected-arch "$ARCH" --expected-node-version 22.23.1
+```
+
+构建脚本会从 `nodejs.org` 下载 Node 22.23.1 并核对官方 SHA-256，生产依赖在目标平台重新安装；Linux 包在 Ubuntu 22.04 构建，面向 x64/glibc，不适用于 Alpine/musl 或 ARM。macOS 包必须在对应架构的 Mac runner 或机器上原生安装依赖、构建和验证，不能从 Windows/Linux 复制 `node_modules`，也不能在一种 Mac 架构上直接拼装另一种架构的包。smoke test 会解压包、加载 `argon2` 与 `better-sqlite3`、执行迁移、启动服务并检查 `/readyz`。
 
 ### GitHub Actions 发布
 
-每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会执行双平台检查并生成保留 14 天的 Actions artifact。将 `package.json` 版本设为 `1.0.1` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
+每次 `main` 推送、Pull Request 或手动运行 [`Build and release`](.github/workflows/build-release.yml) 工作流都会在 Windows、Linux 和 macOS 三种操作系统上执行检查，生成 Windows x64、Linux x64、macOS arm64 和 macOS x64 四个保留 14 天的 Actions artifact。将 `package.json` 版本设为 `1.0.1` 后推送匹配的标签即可生成长期保留的正式 GitHub Release：
 
 ```bash
 git tag v1.0.1
 git push origin v1.0.1
 ```
 
-标签必须与 `package.json` 完全一致；工作流会创建 GitHub Release，并附带两个发行包和 `SHA256SUMS.txt`。未签名的 Windows 可执行文件可能触发 SmartScreen“未知发布者”提示，先核对 Release 校验值；代码签名证书不能放入仓库或 Actions 普通变量。
+标签必须与 `package.json` 完全一致；工作流会校验 Release 暂存目录恰好包含四个发行包，再创建 GitHub Release 并附带这些包和 `SHA256SUMS.txt`。Windows 可执行文件未进行商业代码签名；macOS 包也未进行 Apple Developer ID 签名或公证，当前仅供测试。运行前必须核对 Release 的 SHA-256；签名证书和私钥不能放入仓库或 Actions 普通变量。
 
 ## 生产部署
 
@@ -182,6 +211,7 @@ HTTP 下管理员密码、会话 Cookie 和管理数据均为明文传输，因�
 
 - [Windows Server 部署](docs/deployment-windows.md)：在克隆得到的唯一 Relay Monitor 项目目录内开发和运行；Node、WinSW 等独立工具可安装到管理员自行选择的受控工具目录，不要在工具目录建立第二套 Relay Monitor。
 - [Linux 直接部署](docs/deployment-linux.md)：systemd、内置 HTTP/HTTPS、可选 Caddy/Nginx、权限、备份和密钥轮换。源码工作区只用于构建，运行版本安装到 `/opt/relay-monitor/releases` 并由非 root 用户托管。
+- [macOS 测试部署](docs/deployment-macos.md)：选择 Apple Silicon/Intel 对应的原生便携包，核对 SHA-256 后手工初始化和启动；当前不是 `.app`/`.dmg`，不自动安装 `launchd`，也未签名或公证。
 
 ## 配置
 
@@ -534,6 +564,6 @@ Relay Monitor 的标准 JSON 会发送 `monitor.name = "Relay Monitor"`，正文
 
 不会。它们只抑制匹配的告警通知，监控任务和历史数据仍正常运行。需要真正停止请求时，应编辑站点并关闭对应监控或自动实测。
 
-### Windows 的 `node_modules` 能复制到 Linux 吗？
+### Windows 的 `node_modules` 能复制到 Linux 或 macOS 吗？
 
-不能。SQLite 和 Argon2 含平台原生二进制，必须在目标系统重新安装。
+不能。SQLite 和 Argon2 含平台原生二进制，必须在目标操作系统和 CPU 架构上重新安装；Apple Silicon 与 Intel Mac 的生产依赖也不能互相复制。

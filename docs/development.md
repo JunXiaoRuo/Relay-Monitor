@@ -14,8 +14,8 @@ frontend/
 shared/         前后端共享的稳定领域类型
 deploy/         systemd、Windows 服务、内置 TLS 与可选反向代理样例
 packaging/      原生启动器、便携包初始化与服务样例
-scripts/release Windows/Linux 打包和解压 smoke test
-.github/        双平台 CI、artifact 与标签 Release
+scripts/release Windows/Linux/macOS 打包和解压 smoke test
+.github/        Windows、Linux、macOS CI、artifact 与标签 Release
 tests/          单元、集成和端到端测试
 data/           Windows 本地数据库、主密钥和依赖缓存（不提交）
 ```
@@ -41,6 +41,27 @@ Windows 开发环境是一个项目、一个数据目录和一个启动命令。
 脚本将参数映射为 `HOST`、`PORT`、`RELAY_WEB_HOST`、`RELAY_WEB_PORT` 和 `RELAY_API_PORT`，Vite 代理会跟随 API 端口。按一次 `Ctrl+C` 会同时停止两个进程。只有首次缺少依赖时才去掉 `-SkipInstall`，依赖缓存仍写入 `data/pnpm-store`。
 
 局域网访问只应用于受信开发网络。Windows 防火墙应限定专用网络和来源网段，开发端口不能直接暴露公网。生产构建不再运行 Vite：Fastify 默认在 `0.0.0.0:5173` 同时提供 Web 和 API，受信 LAN 可直接使用 HTTP，公网或不受信网络必须启用 HTTPS。
+
+## 原生发行构建
+
+发行工作流覆盖 Windows、Linux 和 macOS 三种操作系统，产出四套目录便携包：Windows x64、Linux x64、macOS arm64 和 macOS x64。macOS 分别使用 `macos-15` arm64 和 `macos-15-intel` x64 runner，并固定 `MACOSX_DEPLOYMENT_TARGET=15.0`；当前只把 macOS 15 作为兼容基线。每个 job 必须在目标系统上重新安装生产依赖，并在归档后重新解压执行 smoke test；`argon2`、`better-sqlite3` 等原生模块不能从其他操作系统复制。macOS 两种架构同样必须在对应架构的 runner 或机器上原生构建，不能在 Apple Silicon 上直接复制依赖拼装 Intel 包，反之亦然。
+
+macOS 本地构建需要 Node.js 22、pnpm 11.7.0 和 Go 1.26.5 或更新版本。Apple Silicon 设为 `arm64`，Intel Mac 设为 `x64`，并保证参数与当前机器架构一致：
+
+```bash
+ARCH=arm64
+VERSION=$(node -p "require('./package.json').version")
+corepack pnpm install --frozen-lockfile
+corepack pnpm typecheck
+corepack pnpm test
+corepack pnpm build
+bash scripts/release/build-macos.sh --version "$VERSION" --arch "$ARCH" --output-dir artifacts --skip-application-build
+bash scripts/release/smoke-macos.sh --archive "artifacts/relay-monitor-$VERSION-macos-$ARCH.tar.gz" --expected-version "$VERSION" --expected-arch "$ARCH" --expected-node-version 22.23.1
+```
+
+构建脚本固定下载并核对官方 Node.js 22.23.1 runtime。smoke test 必须至少核对包结构和许可证、启动器/Node/原生模块架构、数据库迁移、SQLite 完整性、`/readyz` 与 Web 页面。标签发布阶段必须确认汇总目录恰好存在四个发行包，再生成并复核 `SHA256SUMS.txt`；不得把缺包或多包的目录发布为 Release。
+
+当前 macOS 交付物只用于命令行测试：它不是 `.app` 或 `.dmg`，不自动安装 `launchd`，也未进行 Apple Developer ID 签名或公证。安全使用和首次启动步骤见 [macOS 测试部署](deployment-macos.md)。发行构建本身不改变通知事件目录。
 
 ## 生产访问方式契约
 
