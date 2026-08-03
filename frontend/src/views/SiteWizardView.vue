@@ -207,7 +207,10 @@ async function submit(): Promise<void> {
     values.email = form.email.trim();
     values.password = form.password;
     persistKeys.push('email');
-    if (form.persist_password) persistKeys.push('password');
+    if (form.persist_password) {
+      values.auto_reauthenticate = 'true';
+      persistKeys.push('password', 'auto_reauthenticate');
+    }
   } else {
     values.access_token = form.access_token;
     persistKeys.push('access_token');

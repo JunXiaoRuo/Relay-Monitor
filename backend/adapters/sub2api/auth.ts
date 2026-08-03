@@ -198,7 +198,12 @@ export async function refreshSub2ApiAuth(ctx: SiteContext): Promise<Authenticate
 
 function automaticReauthenticationEnabled(ctx: SiteContext): boolean {
   const value = ctx.credentials?.auto_reauthenticate;
-  return value === 'true' || value === '1';
+  if (value !== undefined) return value === 'true' || value === '1';
+  // Older management-console versions encrypted the password when the user
+  // enabled automatic reauthentication, but accidentally omitted this flag.
+  // The presence of both stored fields is therefore the backwards-compatible
+  // consent signal for those sites.
+  return Boolean(ctx.credentials?.email && ctx.credentials?.password);
 }
 
 function shouldProactivelyRefresh(ctx: SiteContext): boolean {

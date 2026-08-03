@@ -30,7 +30,7 @@ sudo -u relaymon env RELAY_MONITOR_ENV_FILE=/etc/relay-monitor/monitor.env \
   --username admin --display-name 管理员
 ```
 
-发行包内 `service/relay-monitor.service.example` 已调用 bundled launcher；安装到 systemd 前仍需核对路径、账号和 `ReadWritePaths`。整个发行目录必须保留，不能只复制 `relay-monitor`：`runtime`、`node_modules`、`dist/web` 和数据库迁移都是运行时组成部分。
+发行包内 `service/relay-monitor.service.example` 已调用 bundled launcher；安装到 systemd 前仍需核对路径、账号和 `ReadWritePaths`。服务只等待 `network.target` 后启动，不阻塞 Web/API 直到 `network-online.target`；上游采集任务会自行处理启动早期的网络不可达并按配置重试。整个发行目录必须保留，不能只复制 `relay-monitor`：`runtime`、`node_modules`、`dist/web` 和数据库迁移都是运行时组成部分。
 
 需要修改源码、运行完整测试或为其他 glibc 基线自行构建时，再使用下文源码流程。无论选择哪条路线，SQLite 都只允许一个 Relay Monitor 实例写入。
 
@@ -359,7 +359,24 @@ curl --fail https://monitor.example.com/readyz
 3. 停止服务，通过 SQLite `.backup` 创建升级前备份并执行 `PRAGMA quick_check`；把匹配的 keyring 和已启用的 `DATA_DIR/tls` 单独加密、异机归档。
 4. 使用新 release 和生产环境文件运行迁移。
 5. 原子切换 `current`，启动服务，验证 `readyz`、当前 HTTP/HTTPS 地址、日志和 `5173` 监听范围。
-6. 保留至少上一版 release。验证期结束后再删除更旧版本。
+6. 保留当前版和上一版共两个 release；验证成功后用仓库自带清理器删除更旧版本。
+
+首次部署清理器时安装到系统路径：
+
+```bash
+sudo install -m 0755 \
+  /root/RelayMonitor/deploy/prune-linux-releases.sh \
+  /usr/local/sbin/relay-monitor-prune-releases
+```
+
+每次完成新版本验证后先预览，再执行清理。清理器解析并保护 `current` 的真实目标，只处理 `/opt/relay-monitor/releases` 的直接子目录，默认总共保留当前版和一个最新回滚版：
+
+```bash
+sudo relay-monitor-prune-releases
+sudo relay-monitor-prune-releases --apply
+```
+
+如需临时增加保留数量，可为单次命令设置 `RELAY_MONITOR_KEEP_RELEASES`；不要把运行数据、数据库备份或 keyring 放进 release 目录。
 
 示例备份：
 

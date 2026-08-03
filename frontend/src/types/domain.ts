@@ -249,9 +249,12 @@ export interface NotificationRule {
 
 export interface DeliveryRecord {
   id: string;
+  outbox_message_id: string;
   event_id: string;
   channel_name: string;
   status: 'sent' | 'retry' | 'dead';
+  notification_content: string;
+  notification_created_at: string;
   attempt: number;
   http_status: number | null;
   duration_ms: number | null;

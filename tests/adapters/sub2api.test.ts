@@ -257,7 +257,7 @@ describe('Sub2API adapter', () => {
     expect(result.authUpdate?.accessToken).toBe('fresh-access');
   });
 
-  it('falls back to stored-password login only when automatic reauthentication is enabled', async () => {
+  it('falls back to stored-password login when enabled or when an older UI stored the password without the flag', async () => {
     const paths: string[] = [];
     const fetch = fakeFetch((url) => {
       paths.push(url.pathname);
@@ -286,6 +286,18 @@ describe('Sub2API adapter', () => {
     );
     expect(paths).toEqual(['/api/v1/auth/refresh', '/api/v1/settings/public', '/api/v1/auth/login']);
     expect(result).toMatchObject({
+      status: 'authenticated',
+      tokens: { accessToken: 'relogin-access', refreshToken: 'relogin-refresh' },
+    });
+
+    const legacyResult = await refreshOrReauthenticateSub2Api(
+      context(fetch, {
+        refresh_token: 'expired-refresh',
+        email: 'user@example.com',
+        password: 'stored-password',
+      }),
+    );
+    expect(legacyResult).toMatchObject({
       status: 'authenticated',
       tokens: { accessToken: 'relogin-access', refreshToken: 'relogin-refresh' },
     });

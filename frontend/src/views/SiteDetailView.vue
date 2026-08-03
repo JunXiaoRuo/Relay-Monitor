@@ -225,7 +225,10 @@ async function saveCredentials(): Promise<void> {
     values.email = credentialForm.email;
     values.password = credentialForm.password;
     persistKeys.push('email');
-    if (credentialForm.persist_password) persistKeys.push('password');
+    if (credentialForm.persist_password) {
+      values.auto_reauthenticate = 'true';
+      persistKeys.push('password', 'auto_reauthenticate');
+    }
   } else {
     values.access_token = credentialForm.access_token;
     persistKeys.push('access_token');

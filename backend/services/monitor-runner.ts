@@ -3,6 +3,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import {
   AdapterError,
   adapterErrorPublicMessage,
+  isAdapterError,
   type AuthUpdate,
   type MonitorType,
   type NormalizedRate,
@@ -737,10 +738,15 @@ async function runAuthMonitor(
   if (adapter.refreshAuth && accessExpiresAt - Date.now() < 10 * 60_000) {
     result = await adapter.refreshAuth({ siteId, baseUrl, credentials: authCredentials, fetch });
   } else {
-    result = await adapter.authenticate({ siteId, baseUrl, credentials: authCredentials, fetch }, {
-      mode: 'token',
-      values: authCredentials,
-    });
+    try {
+      result = await adapter.authenticate({ siteId, baseUrl, credentials: authCredentials, fetch }, {
+        mode: 'token',
+        values: authCredentials,
+      });
+    } catch (error) {
+      if (!adapter.refreshAuth || !isAdapterError(error, 'AUTH_ACCESS_EXPIRED')) throw error;
+      result = await adapter.refreshAuth({ siteId, baseUrl, credentials: authCredentials, fetch });
+    }
   }
   if (result.status !== 'authenticated') {
     throw new AdapterError('AUTH_INTERACTION_REQUIRED', result.message);

@@ -26,6 +26,7 @@ import { UnsafeUrlError } from '../core/ssrf.js';
 import {
   createWebhookFetchContext,
   webhookOutboundErrorMessage,
+  withWebhookCompatibilityFields,
 } from '../core/webhook.js';
 import {
   incidents,
@@ -618,6 +619,13 @@ function deliveryDto(context: AppContext, delivery: DeliveryRow, outbox: OutboxR
     : outbox?.state === 'dead'
       ? 'dead'
       : 'retry';
+  const payload = withWebhookCompatibilityFields(parseObject(outbox?.payloadJson ?? '{}'));
+  const notificationContent = typeof payload.msg === 'string'
+    ? redactString(payload.msg).slice(0, 2_000)
+    : 'Relay Monitor 通知';
+  const notificationCreatedAt = typeof payload.detected_at === 'string'
+    ? payload.detected_at
+    : outbox?.createdAt ?? delivery.createdAt;
   return {
     id: delivery.id,
     outbox_message_id: delivery.outboxMessageId,
@@ -628,6 +636,8 @@ function deliveryDto(context: AppContext, delivery: DeliveryRow, outbox: OutboxR
     idempotency_key: outbox?.idempotencyKey ?? null,
     outbox_state: outbox?.state ?? null,
     status: deliveryStatus,
+    notification_content: notificationContent,
+    notification_created_at: notificationCreatedAt,
     attempt_number: delivery.attemptNumber,
     attempt: delivery.attemptNumber,
     request_timestamp: delivery.requestTimestamp,

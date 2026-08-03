@@ -112,7 +112,10 @@ function credentialPayload(): { mode: 'token' | 'password'; values: Record<strin
     values.email = credentials.email.trim();
     values.password = credentials.password;
     persistKeys.push('email');
-    if (credentials.persist_password) persistKeys.push('password');
+    if (credentials.persist_password) {
+      values.auto_reauthenticate = 'true';
+      persistKeys.push('password', 'auto_reauthenticate');
+    }
   } else {
     if (!credentials.access_token) throw new Error('更新 Token 时必须填写新的 Access Token。');
     values.access_token = credentials.access_token;

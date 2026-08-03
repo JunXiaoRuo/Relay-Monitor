@@ -49,7 +49,7 @@ function parsePayloadObject(payloadJson: string): Record<string, unknown> {
   return payload as Record<string, unknown>;
 }
 
-function withWebhookCompatibilityFields(payload: Record<string, unknown>): Record<string, unknown> {
+export function withWebhookCompatibilityFields(payload: Record<string, unknown>): Record<string, unknown> {
   const incident = payload.incident;
   const summary = incident && typeof incident === 'object' && !Array.isArray(incident)
     ? (incident as Record<string, unknown>).summary

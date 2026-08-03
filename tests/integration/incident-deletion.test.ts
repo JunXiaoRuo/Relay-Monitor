@@ -155,7 +155,11 @@ describe('incident deletion API', () => {
       eventId: 'event_incident_delete',
       idempotencyKey: 'event_incident_delete',
       state: 'retry',
-      payloadJson: '{}',
+      payloadJson: JSON.stringify({
+        event: 'probe.failed',
+        incident: { summary: 'kedaya · 特价分组 · 模型实测失败' },
+        detected_at: '2026-08-02T10:53:00.000Z',
+      }),
       attempts: 1,
       nextAttemptAt: now,
     }).run();
@@ -168,6 +172,19 @@ describe('incident deletion API', () => {
       errorCode: 'UPSTREAM_UNAVAILABLE',
       succeeded: false,
     }).run();
+
+    const deliveryList = await fixture.app.inject({
+      method: 'GET',
+      url: '/api/v1/notification-deliveries?incident_id=incident_delete_test&page=1&page_size=20',
+      headers: { cookie: fixture.cookie },
+    });
+    expect(deliveryList.statusCode, deliveryList.body).toBe(200);
+    expect(deliveryList.json().data.items[0]).toMatchObject({
+      outbox_message_id: 'outbox_incident_delete',
+      notification_content: 'kedaya · 特价分组 · 模型实测失败',
+      notification_created_at: '2026-08-02T10:53:00.000Z',
+      status: 'retry',
+    });
 
     fixture.context.database.db.update(outboxMessages).set({ state: 'sending' })
       .where(eq(outboxMessages.id, 'outbox_incident_delete')).run();

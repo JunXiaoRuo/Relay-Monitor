@@ -32,6 +32,7 @@ import StatusBadge from '../components/StatusBadge.vue';
 import ToggleSwitch from '../components/ToggleSwitch.vue';
 import { api } from '../services/api';
 import { formatDateTime, formatRelativeTime } from '../services/format';
+import { summarizeDeliveryOutboxes } from '../services/notification-deliveries';
 import {
   effectiveRepeatIntervalSeconds,
   formatRepeatInterval,
@@ -142,10 +143,12 @@ const ruleForm = reactive({
   repeat_interval_seconds: 0, max_repeats: 0, cooldown_seconds: 0,
   send_recovery: true, channel_ids: [] as string[],
 });
+const deliverySummary = computed(() => summarizeDeliveryOutboxes(deliveries.value));
 const summary = computed(() => ({
   channels: channels.value.filter((item) => item.enabled).length,
   rules: rules.value.filter((item) => item.enabled).length,
-  failed: deliveries.value.filter((item) => ['retry', 'dead'].includes(item.status)).length,
+  retry: deliverySummary.value.retry,
+  dead: deliverySummary.value.dead,
   customized: channels.value.filter((item) => item.enabled && (item.body_mode !== 'json' || item.has_headers)).length,
 }));
 const paginatedChannels = computed(() => slicePage(channels.value, tabPages.channels, tabPageSizes.channels));
@@ -617,7 +620,7 @@ onMounted(load);
       <article><Webhook :size="17" aria-hidden="true" /><span><strong>{{ summary.channels }}</strong><small>活动渠道</small></span></article>
       <article><BellRing :size="17" aria-hidden="true" /><span><strong>{{ summary.rules }}</strong><small>启用规则</small></span></article>
       <article><Send :size="17" aria-hidden="true" /><span><strong>{{ summary.customized }}</strong><small>自定义投递</small></span></article>
-      <article :class="{ alert: summary.failed > 0 }"><History :size="17" aria-hidden="true" /><span><strong>{{ summary.failed }}</strong><small>等待重试 / 终止</small></span></article>
+      <article :class="{ alert: summary.retry > 0 || summary.dead > 0 }"><History :size="17" aria-hidden="true" /><span><strong>{{ summary.retry }} / {{ summary.dead }}</strong><small>等待重试 / 已终止</small></span></article>
     </section>
 
     <section class="surface notification-surface">
@@ -674,14 +677,14 @@ onMounted(load);
       <template v-else-if="activeTab === 'deliveries' && deliveries.length">
         <div class="table-wrap desktop-delivery-table">
           <table class="data-table deliveries-table">
-          <thead><tr><th>时间</th><th>事件 ID</th><th>渠道</th><th>状态</th><th>尝试</th><th>HTTP</th><th>耗时</th><th><span class="sr-only">操作</span></th></tr></thead>
-          <tbody><tr v-for="delivery in paginatedDeliveries" :key="delivery.id"><td>{{ formatDateTime(delivery.created_at) }}</td><td class="mono">{{ delivery.event_id }}</td><td>{{ delivery.channel_name }}</td><td><StatusBadge :status="delivery.status" /></td><td class="numeric">{{ delivery.attempt }}</td><td class="numeric">{{ delivery.http_status ?? '—' }}</td><td class="numeric">{{ delivery.duration_ms ? `${delivery.duration_ms} ms` : '—' }}</td><td><button v-if="delivery.status !== 'sent'" class="icon-btn" type="button" :disabled="actionId === delivery.id" title="重放投递" aria-label="重放投递" @click="replay(delivery)"><RotateCcw :size="16" aria-hidden="true" /></button><CheckCircle2 v-else :size="16" class="text-success" aria-label="已发送" /></td></tr></tbody>
+          <thead><tr><th>通知产生时间</th><th>通知内容</th><th>渠道</th><th>状态</th><th>尝试</th><th>HTTP</th><th>耗时</th><th><span class="sr-only">操作</span></th></tr></thead>
+          <tbody><tr v-for="delivery in paginatedDeliveries" :key="delivery.id"><td>{{ formatDateTime(delivery.notification_created_at) }}</td><td class="delivery-content">{{ delivery.notification_content }}</td><td>{{ delivery.channel_name }}</td><td><StatusBadge :status="delivery.status" /></td><td class="numeric">{{ delivery.attempt }}</td><td class="numeric">{{ delivery.http_status ?? '—' }}</td><td class="numeric">{{ delivery.duration_ms ? `${delivery.duration_ms} ms` : '—' }}</td><td><button v-if="delivery.status !== 'sent'" class="icon-btn" type="button" :disabled="actionId === delivery.id" title="重放投递" aria-label="重放投递" @click="replay(delivery)"><RotateCcw :size="16" aria-hidden="true" /></button><CheckCircle2 v-else :size="16" class="text-success" aria-label="已发送" /></td></tr></tbody>
           </table>
         </div>
         <div class="mobile-delivery-list">
           <article v-for="delivery in paginatedDeliveries" :key="`mobile-${delivery.id}`" class="mobile-delivery-item">
-            <header><div><strong>{{ delivery.channel_name }}</strong><span>{{ formatDateTime(delivery.created_at) }}</span></div><StatusBadge :status="delivery.status" /></header>
-            <p class="mono">{{ delivery.event_id }}</p>
+            <header><div><strong>{{ delivery.channel_name }}</strong><span>通知产生于 {{ formatDateTime(delivery.notification_created_at) }}</span></div><StatusBadge :status="delivery.status" /></header>
+            <p>{{ delivery.notification_content }}</p>
             <dl><div><dt>尝试次数</dt><dd>{{ delivery.attempt }}</dd></div><div><dt>HTTP</dt><dd>{{ delivery.http_status ?? '—' }}</dd></div><div><dt>耗时</dt><dd>{{ delivery.duration_ms ? `${delivery.duration_ms} ms` : '—' }}</dd></div></dl>
             <button v-if="delivery.status !== 'sent'" class="btn btn-secondary" type="button" :disabled="actionId === delivery.id" @click="replay(delivery)"><RotateCcw :size="15" aria-hidden="true" />重放投递</button>
           </article>
@@ -856,6 +859,7 @@ onMounted(load);
 .notification-tabs { padding: 0 12px; }
 .channels-table { min-width: 900px; }
 .deliveries-table { min-width: 920px; }
+.delivery-content { min-width: 260px; max-width: 520px; white-space: normal; overflow-wrap: anywhere; }
 .mobile-channel-list,
 .mobile-delivery-list { display: none; }
 .notification-actions,

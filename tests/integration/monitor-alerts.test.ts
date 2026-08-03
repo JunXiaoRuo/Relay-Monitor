@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  AdapterError,
   AdapterRegistry,
   type AuthResult,
   type HealthResult,
@@ -39,6 +40,8 @@ class FakeAlertAdapter implements RelayAdapter {
   });
 
   authInput: unknown = null;
+  authErrorOnce = false;
+  refreshCount = 0;
 
   health: HealthResult = {
     status: 'healthy',
@@ -89,9 +92,21 @@ class FakeAlertAdapter implements RelayAdapter {
 
   async authenticate(_ctx: Parameters<RelayAdapter['authenticate']>[0], input: Parameters<RelayAdapter['authenticate']>[1]): Promise<AuthResult> {
     this.authInput = input;
+    if (this.authErrorOnce) {
+      this.authErrorOnce = false;
+      throw new AdapterError('AUTH_ACCESS_EXPIRED', 'expired');
+    }
     return {
       status: 'authenticated',
       tokens: { accessToken: 'unused', tokenType: 'Bearer' },
+    };
+  }
+
+  async refreshAuth(): Promise<AuthResult> {
+    this.refreshCount += 1;
+    return {
+      status: 'authenticated',
+      tokens: { accessToken: 'refreshed-access', tokenType: 'Bearer' },
     };
   }
 
@@ -199,6 +214,26 @@ describe('monitor alert and outbox integration', () => {
 
     expect(result).toEqual({ success: true });
     expect(adapter.authInput).toEqual({ mode: 'token', values: { access_token: 'access-token' } });
+  });
+
+  it('refreshes authentication when the independent auth check sees an early token expiry', async () => {
+    const { context, adapter, siteId } = setup();
+    context.database.db.update(sites).set({ accessExpiresAt: '2099-01-01T00:00:00.000Z' }).where(eq(sites.id, siteId)).run();
+    storeCredentials(context.database, context.vault, siteId, {
+      access_token: 'expired-access-token',
+    }, { persistKeys: ['access_token'] });
+    context.database.db.insert(monitorConfigs).values({
+      id: 'monitor_auth_early_expiry',
+      siteId,
+      monitorType: 'auth',
+      intervalSeconds: 60,
+    }).run();
+    adapter.authErrorOnce = true;
+
+    const result = await runMonitor(context, siteId, 'auth', new AbortController().signal);
+
+    expect(result).toEqual({ success: true });
+    expect(adapter.refreshCount).toBe(1);
   });
 
   it('keeps transient retry attempts out of health history and the event center', async () => {
